@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.26100.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Enums.cs" />
+    <Compile Remove="Map.cs" />
+    <Compile Remove="Node.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RMV.Optimization.TSP.Common\RMV.Optimization.TSP.Common\RMV.Optimization.TSP.Common.csproj" />
+    <ProjectReference Include="..\RMV.Optimization.TSP.Domain\RMV.Optimization.TSP.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
