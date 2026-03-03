@@ -6,13 +6,13 @@ namespace RMV.Optimization.TSP.PSO;
 /// <summary>
 /// Particle for TSP PSO
 /// </summary>
-public class Particle 
+public class Particle
 {
 	public IList<int> Position { get; set; } = [];
 	public IList<int> BestPosition { get; set; } = [];
 	public double Cost { get; set; } = double.MaxValue;
 	public double BestCost { get; set; } = double.MaxValue;
-	public List<(int,int)> Velocity { get; set; } = [];
+	public List<(int, int)> Velocity { get; set; } = [];
 
 	int ID;
 
@@ -29,22 +29,43 @@ public class Particle
 		this.Velocity = [];
 	}
 
-	public void Update( IList<int> position, TspMap map )
-	{		
-		this.Velocity = this.UpdateVelocity( position ); //update velocity based on global best
-				
-		this.Position = this.ApplyVelocity( this.Velocity ); //update position by applying velocity
+	/// <summary>
+	/// Replaces position and updates personal best if improved
+	/// </summary>
+	public void SetPosition( IList<int> position, double cost )
+	{
+		this.Position = [ .. position ];
+		this.Cost = cost;
 
-		this.Cost = map.GetTourLength( this.Position ); //evaluate new position
-		
-		if( this.Cost < this.BestCost ) //update personal best
+		if( cost < this.BestCost )
+		{
+			this.BestCost = cost;
+			this.BestPosition = [ .. position ];
+		}
+	}
+
+	public void Update( IList<int> globalBest, TspMap map )
+	{
+		this.Velocity = this.UpdateVelocity( globalBest );
+
+		// If velocity is empty, particle has converged — perturb to maintain diversity
+		if( this.Velocity.Count == 0 )
+		{
+			Perturb();
+		}
+
+		this.Position = this.ApplyVelocity( this.Velocity );
+
+		this.Cost = map.GetTourLength( this.Position );
+
+		if( this.Cost < this.BestCost )
 		{
 			this.BestCost = this.Cost;
 			this.BestPosition = [ .. this.Position ];
 		}
 	}
 
-	List<(int, int)> UpdateVelocity( IList<int> position )
+	List<(int, int)> UpdateVelocity( IList<int> globalBest )
 	{
 		var newVelocity = new List<(int, int)>();
 
@@ -57,7 +78,7 @@ public class Particle
 		}
 
 		// Social component: Difference between global best and current position
-		var socialSwaps = GenerateSwaps( this.Position, position );
+		var socialSwaps = GenerateSwaps( this.Position, globalBest );
 
 		foreach( var swap in socialSwaps )
 		{
@@ -71,136 +92,76 @@ public class Particle
 		}
 
 		return newVelocity;
-	}	
+	}
+
+	/// <summary>
+	/// Adds random swaps when particle has fully converged to prevent stagnation
+	/// </summary>
+	void Perturb()
+	{
+		int n = this.Position.Count;
+		int swapCount = Math.Max( 2, n / 10 ); // perturb ~10% of the path
+
+		for( int s = 0; s < swapCount; s++ )
+		{
+			int i = Random.Shared.Next( n );
+			int j = Random.Shared.Next( n );
+
+			if( i != j ) this.Velocity.Add( (i, j) );
+		}
+	}
 
 
-	List<int> ApplyVelocity( IList<(int,int)> velocity )
+	List<int> ApplyVelocity( IList<(int, int)> velocity )
 	{
 		var newPosition = new List<int>( this.Position );
 
-		foreach( var swap in velocity ) // Apply each swap in the velocity to the current position
+		foreach( var swap in velocity )
 		{
-			(newPosition[ swap.Item1 ], newPosition[ swap.Item2 ]) = (newPosition[ swap.Item2 ], newPosition[ swap.Item1 ]);			
+			(newPosition[ swap.Item1 ], newPosition[ swap.Item2 ]) = (newPosition[ swap.Item2 ], newPosition[ swap.Item1 ]);
 		}
 
 		return newPosition;
 	}
 
 
-
+	/// <summary>
+	/// Generates swap sequence to transform 'from' into 'to' using O(n) index lookup
+	/// </summary>
 	static List<(int, int)> GenerateSwaps( IList<int> from, IList<int> to )
 	{
-		if( from.Count != to.Count ) throw new ArgumentException( "Permutations must have the same length." );
-
+		int n = from.Count;
 		var swaps = new List<(int, int)>();
-		var temp = new List<int>( from );
+		var temp = new int[ n ];
+		var indexOf = new int[ n ]; // indexOf[city] = position of city in temp
 
-		for( int i = 0; i < temp.Count; i++ )
+		for( int i = 0; i < n; i++ )
+		{
+			temp[ i ] = from[ i ];
+			indexOf[ from[ i ] ] = i;
+		}
+
+		for( int i = 0; i < n; i++ )
 		{
 			if( temp[ i ] != to[ i ] )
 			{
-				int index = temp.IndexOf( to[ i ] );
+				int j = indexOf[ to[ i ] ]; // O(1) lookup instead of IndexOf O(n)
 
-				if( index == -1 ) throw new ArgumentException( "Target permutation contains elements not in source." );
+				swaps.Add( (i, j) );
 
-				swaps.Add( (i, index) );
+				// Update index tracking
+				indexOf[ temp[ i ] ] = j;
+				indexOf[ temp[ j ] ] = i;
 
-				(temp[ i ], temp[ index ]) = (temp[ index ], temp[ i ]); // Swap in temp to keep future indices correct
+				(temp[ i ], temp[ j ]) = (temp[ j ], temp[ i ]);
 			}
 		}
 
 		return swaps;
 	}
 
-	#region obsolete
-	//List<(int, int)> GenerateSwaps( IList<int> path )
-	//{
-	//	var swaps = new List<(int, int)>();
-	//	var temp = new List<int>( this.Position );
-
-	//	for( int i = 0; i < this.Position.Count; i++ )
-	//	{
-	//		if( temp[ i ] != path[ i ] )
-	//		{
-	//			int index = temp.IndexOf( path[ i ] );
-
-	//			swaps.Add( (i, index) );
-
-	//			(temp[ i ], temp[ index ]) = (temp[ index ], temp[ i ]); // Swap the elements in the temporary list				
-	//		}
-	//	}
-
-	//	return swaps;
-	//}
-
-
-	//public List<int> ApplyVelocity( IList<int> position, IList<int> velocity )
-	//{
-	//	var newPosition = new List<int>( position );
-
-	//	foreach( var swap in velocity ) // Apply each swap in the velocity to the current position
-	//	{
-	//		(newPosition[ swap.Item1 ], newPosition[ swap.Item2 ]) = (newPosition[ swap.Item2 ], newPosition[ swap.Item1 ]); 
-	//		//int temp = newPosition[ swap.Item1 ];
-	//		//newPosition[ swap.Item1 ] = newPosition[ swap.Item2 ];
-	//		//newPosition[ swap.Item2 ] = temp;
-	//	}
-
-	//	return newPosition;
-	//}
-	//static List<(int, int)> GenerateSwaps( IList<int> from, IList<int> to )
-	//{
-	//	var swaps = new List<(int, int)>();
-	//	var temp = new List<int>( from );
-	//	for( int i = 0; i < from.Count; i++ )
-	//	{
-	//		if( temp[ i ] != to[ i ] )
-	//		{
-	//			int swapIndex = temp.IndexOf( to[ i ] );
-	//			swaps.Add( (i, swapIndex) );
-	//			(temp[ i ], temp[ swapIndex ]) = (temp[ swapIndex ], temp[ i ]); // Swap the elements in the temporary list				
-	//		}
-	//	}
-	//	return swaps;
-	//}
-
-	/// <summary>
-	/// Update the particle's position and velocity based on the global best position
-	///</summary>
-	///<param name="position"> The global best position to update the particle's velocity</param>
-	//public void Update( TspMap map, IList<int> position )
-	//{
-	//	this.UpdateVelocity( position );
-
-	//	this.UpdatePosition( map );
-	//}
-
-	/// <summary>
-	/// Update the velocity of the particle based on the global best position
-	/// </summary>	
-	//void UpdateVelocity( IList<int> gbPosition ) => this.Velocity = gbPosition.Except( base.Path ).ToList();
-	//void UpdateVelocity( IList<int> position ) => this.Velocity = position.Except( this.Position ).ToList();
-
-
-	/// <summary>
-	/// Update the position of the particle based on its velocity
-	/// </summary>	
-	//void UpdatePosition( TspMap map )
-	//{
-	//	this.Velocity.Where( move => !this.Position.Contains( move ) ).ToList().ForEach( move => this.Position.Add( move ) );
-
-	//	double cost = map.GetTourLength( this.Position );
-
-	//	if( cost < this.BestCost )
-	//	{
-	//		this.BestCost = cost;
-	//		this.BestPosition = new List<int>( this.Position );
-	//	}
-	//}
-	#endregion
-
 	public override string ToString() => $"id:{ID} cost:{BestCost:0.#} path:[{string.Join( ',', Position )}]";
-	
+
 }
 
 /// <summary>

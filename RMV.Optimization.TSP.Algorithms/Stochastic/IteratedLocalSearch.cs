@@ -62,17 +62,12 @@ public class IteratedLocalSearch( TspMap map ) : TspAlgorithmBase( map ) //, ITs
 	{
 		var path = Perturbate( best.Path );
 
-		switch( Random.Shared.Next( 2 ) )
-		{
-			case 0:  
-			case 1: 
-			case 2: return Parallel2OptSearch( path ); 
-
-			case 3: 
-			case 4: return Parallel2p5OptSearch( path );
-			case 5: return Parallel3OptSearch( path );
-			default: throw new InvalidOperationException( "Invalid random choice" );
-		}		
+		return Random.Shared.Next( 2 ) switch {
+			0 or 1 or 2 => Parallel2OptSearch( path ),
+			3 or 4 => Parallel2p5OptSearch( path ),
+			5 => Parallel3OptSearch( path ),
+			_ => throw new InvalidOperationException( "Invalid random choice" ),
+		};
 	}
 
 	/// <summary>

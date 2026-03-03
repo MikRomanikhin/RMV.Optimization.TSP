@@ -14,9 +14,16 @@ public class AcoEdge( int head, int tail, double weight, double pheromone, AcoSe
 	public double Pheromone { get; set; } = pheromone;
 
 	readonly AcoSettings settings = settings;
-	double initPheromone = pheromone;
+	readonly double initPheromone = pheromone;
 
-	public double Chance => this.Pheromone * Math.Pow( 1.0 / this.Weight, this.settings.Beta );
+	/// <summary>
+	/// Minimum pheromone floor to prevent total trail loss
+	/// </summary>
+	static readonly double PheromoneFloor = 1e-6;
+
+	//public double Chance => this.Pheromone * Math.Pow( 1.0 / this.Weight, this.settings.Beta );
+	public double Chance => Math.Pow( this.Pheromone, this.settings.Alpha ) * Math.Pow( 1.0 / this.Weight, this.settings.Beta );
+
 
 	#endregion
 
@@ -37,7 +44,8 @@ public class AcoEdge( int head, int tail, double weight, double pheromone, AcoSe
 	/// Evaporate pheromone (AS)
 	/// </summary>
 	//public void Evaporate() => this.Pheromone *= ( 1.0 - this.settings.Rho );
-	public void Evaporate() => this.Pheromone = Math.Max( initPheromone, this.Pheromone * ( 1.0 - this.settings.Rho ) );
+	//public void Evaporate() => this.Pheromone = Math.Max( initPheromone, this.Pheromone * ( 1.0 - this.settings.Rho ) );
+	public void Evaporate() => this.Pheromone = Math.Max( PheromoneFloor, this.Pheromone * ( 1.0 - this.settings.Rho ) );
 
 	#endregion
 
@@ -54,14 +62,7 @@ public class AcoEdge( int head, int tail, double weight, double pheromone, AcoSe
 
 	#region Misc ---------------------------------------------------------------
 
-	public override string ToString() => $"d={Weight:0.00} p={Pheromone:0.000} c={Chance:0.000}";
-
-	//public double Pheromone
-	//{
-	//	get => this.pheromone;
-	//	set => this.pheromone = Math.Max( initPheromone, value );
-	//}
-	//double pheromone = pheromone;
+	public override string ToString() => $"d={Weight:0.00} p={Pheromone:0.000} c={Chance:0.000}";	
 
 	#endregion
 

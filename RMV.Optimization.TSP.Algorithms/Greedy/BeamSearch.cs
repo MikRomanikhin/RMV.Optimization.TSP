@@ -8,7 +8,8 @@ namespace RMV.Optimization.TSP.Algorithms;
 /// </summary>
 public class BeamSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 {
-	BeamSettings settings;	
+	BeamSettings settings;
+	int nextStart = 0;
 
 	protected override void Configure()
 	{
@@ -16,264 +17,181 @@ public class BeamSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );
 	}
 
-	protected override TspResult? Initialize() => base.InitializeTour();
+
+	protected override TspResult? Initialize()
+	{
+		// Use city 0 beam search as the initial solution
+		this.nextStart = 1;
+
+		return RunBeamSearch( 0 );
+	}
 
 	protected override TspResult RunEpoch( TspResult best )
 	{
-		var current = best.Clone(); // start with the best so far solution
+		if( this.nextStart >= base.Cities ) this.nextStart = 0;
 
-		for( int city = 0; city < base.Cities; city++ )
-		{
-			var result = RunBeamSearch( city );
+		var result = RunBeamSearch( this.nextStart++ );
 
-			if( result < current ) current = result;		
-		}
-
-		return current; // return the best found solution in this epoch
+		return result.Tour + MARGIN < best.Tour ? result : best;
 	}
 
 
 	/// <summary>
-	/// Beam Search algorithm 
+	/// Beam Search algorithm with local search refinement
 	/// </summary>
 	TspResult RunBeamSearch( int start )
 	{
-		var beam = new List<TspResult> { new( 0, [ start ] ) };
+		var beam = new List<BeamState>( settings.Size ) { new( start ) };
 
 		for( int step = 0; step < base.Cities - 1; step++ )
-		{			
-			beam = PopulateBeam( beam );	// Select the best candidates for the next beam			
+		{
+			beam = ExpandBeam( beam );
 		}
 
-		// Complete the tour by returning to the start city
-		beam.ForEach( s => s.Tour += map[ s.Path[ ^1 ], start ].Weight );
+		// Complete tours and find best, then refine with local search
+		var best = beam.Select( s => CompleteTour( s, start ) ).MinBy( r => r.Tour );
 
-		return beam.MinBy( s => s.Tour );
+		return Parallel2OptSearch( [ .. best.Path ] );//LinKernighanSearch( [ .. best.Path ] );
 	}
 
-	List<TspResult> PopulateBeam( List<TspResult> beam )
+	/// <summary>
+	/// Completes a partial tour by adding the return edge
+	/// </summary>
+	TspResult CompleteTour( BeamState state, int start )
 	{
-		var nextBeam = CreateBeam( beam );
+		double tour = state.Cost + map[ state.Path[ ^1 ], start ].Weight;
 
-		for( int i = 0; i < beam.Count - 2; i++ ) // Hybridization: combine top solutions to create new candidates
-		{
-			for( int j = i + 2; j < beam.Count; j++ )
-			{				
-				var result = base.Crossover( beam[ i ], beam[ j ] );
-				nextBeam.Add( result );
-			}
-		}
-
-		return nextBeam.OrderBy( s => s.Tour ).Take( settings.Size ).ToList();
+		return new TspResult( tour, state.Path );
 	}
 
-	List<TspResult> CreateBeam( List<TspResult> beam )
+	/// <summary>
+	/// Expands beam by considering only top candidates per state, avoiding full enumeration + sort of all possibilities
+	/// </summary>
+	List<BeamState> ExpandBeam( List<BeamState> beam )
 	{
-		var nextBeam = new List<TspResult>();
+		var nextBeam = new List<BeamState>( settings.Size * 4 );
 
-		foreach( var state in beam ) // Expand current beam
+		foreach( var state in beam )
 		{
-			var available = Enumerable.Range( 0, base.Cities ).Except( state.Path );
+			// Only expand the nearest candidates per state — no need to generate all
+			var nearest = GetNearestAvailable( state );
 
-			foreach( int city in available )
+			foreach( var (city, weight) in nearest )
 			{
-				var newPath = new List<int>( state.Path ) { city };
-				double newCost = map[ state.Path[ ^1 ], city ].Weight + state.Tour;
-
-				nextBeam.Add( new TspResult( newCost, newPath ) );
+				nextBeam.Add( state.Extend( city, weight ) );
 			}
 		}
 
-		return nextBeam;
+		// Add one random expansion per state for diversity
+		foreach( var state in beam )
+		{
+			int count = base.Cities - state.Visited.Count;
+
+			if( count == 0 ) continue;
+
+			int skip = Random.Shared.Next( count );
+
+			// Pick a random unvisited city without allocating a list
+			int randomCity = -1;
+			int seen = 0;
+
+			for( int city = 0; city < base.Cities; city++ )
+			{
+				if( !state.Visited.Contains( city ) )
+				{
+					if( seen == skip ) { randomCity = city; break; }
+					seen++;
+				}
+			}
+
+			if( randomCity > -1 )
+			{
+				double weight = map[ state.Path[ ^1 ], randomCity ].Weight;
+
+				nextBeam.Add( state.Extend( randomCity, weight ) );
+			}
+		}
+
+		nextBeam.Sort( ( a, b ) => a.Cost.CompareTo( b.Cost ) );
+
+		return nextBeam.Count <= settings.Size ? nextBeam : nextBeam.GetRange( 0, settings.Size );
 	}
 
-	#region obsolete
-	///<summary>
-	/// Combines two TSP paths into a new candidate using order-based crossover
-	///</summary>
-	//static List<int> CombineSolutions( IList<int> parent1, IList<int> parent2 )
-	//{
-	//	int length = parent1.Count;
-
-	//	// Randomly select crossover points
-	//	var range = IRandomSequence.GetUniqueInts( 2, 0, length - 1 );
-	//	int start = range[ 0 ];//Random.Shared.Next( 0, length );
-	//	int end = range[ 1 ];//Random.Shared.Next( start, length );
-
-	//	var child = new int[ length ];
-	//	var visited = new HashSet<int>();
-
-	//	for( int i = start; i <= end; i++ ) // Copy the segment from parent1
-	//	{
-	//		child[ i ] = parent1[ i ];
-	//		visited.Add( parent1[ i ] );
-	//	}		
-
-	//	int index = ( end + 1 ) % length;
-
-	//	for( int i = 0; i < length; i++ ) // Fill the remaining positions with genes from parent2 in order
-	//	{
-	//		int gene = parent2[ ( end + 1 + i ) % length ];
-
-	//		if( !visited.Contains( gene ) )
-	//		{
-	//			child[ index ] = gene;
-	//			visited.Add( gene );
-	//			index = ( index + 1 ) % length;
-	//		}
-	//	}
-
-	//	return [ .. child ];
-	//}
-
 
 	/// <summary>
-	/// Combines two TSP paths into a new candidate using order-based crossover.
-	/// Ensures the result is a valid permutation of all cities.
+	/// Returns the nearest unvisited cities for expansion, limited to beam size to avoid generating thousands of candidates
 	/// </summary>
-	//static List<int> CombineSolutions( IList<int> parent1, IList<int> parent2 )
-	//{
-	//	int n = parent1.Count;
+	List<(int city, double weight)> GetNearestAvailable( BeamState state )
+	{
+		int lastCity = state.Path[ ^1 ];
+		int take = settings.Size;
 
-	//	var child = new List<int>( n );
-	//	var visited = new HashSet<int>();
+		// Use a simple insertion into a bounded list to find top-N nearest
+		var nearest = new List<(int city, double weight)>( take + 1 );
 
-	//	// Copy the first half from parent1
-	//	int half = n / 2;
-	//	for( int i = 0; i < half; i++ )
-	//	{
-	//		child.Add( parent1[ i ] );
-	//		visited.Add( parent1[ i ] );
-	//	}
+		for( int city = 0; city < base.Cities; city++ )
+		{
+			if( state.Visited.Contains( city ) ) continue;
 
-	//	// Fill the rest from parent2 in order, skipping duplicates
-	//	for( int i = 0; i < n; i++ )
-	//	{
-	//		int city = parent2[ i ];
-	//		if( !visited.Contains( city ) )
-	//		{
-	//			child.Add( city );
-	//			visited.Add( city );
-	//		}
-	//	}
+			double w = map[ lastCity, city ].Weight;
 
-	//	return child;
-	//}
-	//TspResult RunBeamSearch( int start )
-	//{
-	//	var beam = new List<TspResult> { new( 0, [ start ] ) };
+			// Insert in sorted position, keep only top 'take'
+			int pos = nearest.Count;
 
-	//	for( int step = 0; step < base.Cities - 1; step++ )
-	//	{
-	//		beam = beam.SelectMany( state => Enumerable.Range( 0, base.Cities ).Except( state.Path )
-	//					  .Select( city => new TspResult( state.Tour + map[ state.Path[ ^1 ], city ].Weight, [.. state.Path,  city] ) ) )
-	//					  .OrderBy( s => s.Tour ).Take( settings.Size ).ToList();
-	//	}
+			for( int i = 0; i < nearest.Count; i++ )
+			{
+				if( w < nearest[ i ].weight ) { pos = i; break; }
+			}
 
-	//	beam.ForEach( s => s.Tour += base.map[ s.Path[ ^1 ], start ].Weight );
+			if( pos < take )
+			{
+				nearest.Insert( pos, (city, w) );
 
-	//	return beam.MinBy( s => s.Tour );
-	//}
-	/// <summary>
-	/// Beam Search async wrapper
-	/// </summary>	
-	//public async Task<TspResult> RunAsync(CancellationToken token )
-	//{
-	//	var best = new TspResult( double.MaxValue, new int[ base.Cities ] );
+				if( nearest.Count > take ) nearest.RemoveAt( take );
+			}
+		}
 
-	//	base.timer.Start();
+		return nearest;
+	}
 
-	//	await Task.Run( () => 
-	//	{
-	//		int count = 0;
+}
 
-	//		for( int city = 0; city < base.Cities; city++ )
-	//		{
-	//			var result = RunBeamSearch( city );
+/// <summary>
+/// Lightweight beam state — uses HashSet for O(1) visited checks and avoids repeated path copying during expansion
+/// </summary>
+sealed class BeamState
+{
+	public List<int> Path { get; }
+	public HashSet<int> Visited { get; }
+	public double Cost { get; }
 
-	//			if( result < best ) //tour length check
-	//			{
-	//				best = result;
+	public BeamState( int startCity )
+	{
+		this.Path = [ startCity ];
+		this.Visited = [ startCity ];
+		this.Cost = 0;
+	}
 
-	//				base.Draw( best.Tour, ++count, best.Path );
-	//			}
-	//		}
-	//	} );
-
-	//	base.timer.Stop();
-
-	//	return best;
-	//}
-	//TspResult RunBeamSearch( int start )
-	//{
-	//	List<TspResult> beam = [ new( 0, [ start ] ) ];
-
-	//	for( int step = 0; step < base.Cities - 1; step++ )
-	//	{
-	//		List<TspResult> nextBeam = [];
-
-	//		foreach( var state in beam )
-	//		{
-	//			var available = Enumerable.Range( 0, base.Cities ).Except( state.Path );
-
-	//			foreach( int city in available )
-	//			{
-	//				var newPath = new List<int>( state.Path ) { city };
-
-	//				double newCost = state.Tour + this.Map[ state.Path[ ^1 ], city ].Weight;
-
-	//				nextBeam.Add( new TspResult( newCost, newPath ) );
-	//			}
-	//		}
-
-	//		// Keep only the top `beamWidth` states with the lowest cost
-	//		beam = nextBeam.OrderBy( s => s.Tour ).Take( settings.Size ).ToList();
-	//	}
-
-	//	beam.ForEach( s => s.Tour += this.Map[ s.Path[ ^1 ], start ].Weight ); // Complete the tour		
-
-	//	return beam.MinBy( s => s.Tour ); // Return the best solution in the beam
-	//}	
+	BeamState( List<int> path, HashSet<int> visited, double cost )
+	{
+		this.Path = path;
+		this.Visited = visited;
+		this.Cost = cost;
+	}
 
 	/// <summary>
-	/// N-Nearest Neighbor TSP: At each step, keep N nearest candidates and branch.
+	/// Creates a new state by extending this state with a new city
 	/// </summary>
-	/// <param name="start">Starting city index</param>
-	/// <param name="N">Number of nearest neighbors to consider at each step</param>
-	//protected TspResult RunBeamSearch( int start )
-	//{
-	//	// Each state is a partial path and its cost
-	//	var beam = new List<TspResult> { new( 0, [start] ) };
+	public BeamState Extend( int city, double edgeWeight )
+	{
+		var newPath = new List<int>( this.Path.Count + 1 );
+		newPath.AddRange( this.Path );
+		newPath.Add( city );
 
-	//	for( int step = 0; step < this.Cities - 1; step++ )
-	//	{
-	//		var nextBeam = new List<TspResult>();
+		var newVisited = new HashSet<int>( this.Visited ) { city };
 
-	//		foreach( var state in beam ) // Find N nearest unvisited cities from the current city
-	//		{											
-	//			var unvisited = Enumerable.Range( 0, this.Cities ).Except( state.Path );
-
-	//			var nearest = unvisited.Select( city => new { city, weight = this.Map[ state.Path[ ^1 ], city ].Weight } )
-	//				 .OrderBy( x => x.weight ).Take( settings.Size );
-
-	//			foreach( var candidate in nearest )
-	//			{
-	//				var newPath = new List<int>( state.Path ) { candidate.city };
-
-	//				double newCost = state.Tour + candidate.weight;
-
-	//				nextBeam.Add( new TspResult( newCost, newPath ) );
-	//			}
-	//		}
-
-	//		// Optionally, keep only the best N states to limit growth (beam width)
-	//		beam = nextBeam.OrderBy( s => s.Tour ).Take( settings.Size ).ToList();
-	//	}
-
-	//	return beam.Select( b => new TspResult( b.Tour + this.Map[ b.Path[ ^1 ], b.Path[ 0 ] ].Weight, b.Path ) ).MinBy( b => b.Tour );		
-	//}
-	#endregion
-
+		return new BeamState( newPath, newVisited, this.Cost + edgeWeight );
+	}
 }
 
 /// <summary>

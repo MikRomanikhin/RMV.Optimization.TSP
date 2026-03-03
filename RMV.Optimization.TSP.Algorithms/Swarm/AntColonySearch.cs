@@ -18,9 +18,8 @@ public class AntColonySearch( TspMap map ) : TspAlgorithmBase( map )
 	protected override void Configure()
 	{
 		this.settings = ConfigManager.GetSection<AcoSettings>( "aco" );
-		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );
-
-		this.Map = new AcoMap( this.map, this.settings );		
+		
+		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );			
 	}
 
 	
@@ -29,6 +28,8 @@ public class AntColonySearch( TspMap map ) : TspAlgorithmBase( map )
 	{
 		var result = base.BuildNearestTour();
 		this.settings.Nearest = result.Tour;
+
+		this.Map = new AcoMap( this.map, this.settings );
 
 		return result;
 	}

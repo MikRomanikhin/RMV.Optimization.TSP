@@ -70,8 +70,8 @@ public abstract class TspAlgorithmBase : ITspAsync
 
 				TspResult current = RunEpoch( best );
 
-				//if( best != null )
-				//{
+				if( best != null )
+				{
 					if( current < best )
 					{
 						best = current.Clone();
@@ -80,10 +80,10 @@ public abstract class TspAlgorithmBase : ITspAsync
 					}
 
 					if( ++count % settings.Redraw == 0 ) Draw( best.Tour, count );
-				//}
+				}
 			}
 
-			Draw( best.Tour, ++count, best.Path );
+			if( best != null ) Draw( best.Tour, ++count, best.Path );
 
 		}, token ?? CancellationToken.None ).ConfigureAwait( false ); //Provide a default CancellationToken if null and ensure proper async behavior
 
@@ -1186,15 +1186,5 @@ public abstract class TspAlgorithmBase : ITspAsync
 	}
 
 	#endregion
-
-	#region obsolete
-	//static void BuildSwap( IList<int> tour, int i, int j, List<List<int>> newTours )
-	//{
-	//	List<int> path = new( tour );
-
-	//	path.Reverse( i, j );
-
-	//	newTours.Add( path );
-	//}
-	#endregion
+		
 }

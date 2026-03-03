@@ -37,13 +37,11 @@ public class AcoMap
 
 		Initialize();
 	}
-
-	//string Name = string.Empty;
-	//string Comment = string.Empty;
+	
 
 	readonly TspAlgorithm Algorithm; //ACO algorithm
 	readonly AcoSettings Settings; // Configuration parameters
-	int Cities = 0; // Total cities
+	readonly int Cities = 0; // Total cities
 
 	readonly TspNodes Nodes = []; // Nodes collection	
 	readonly AcoEdges Edges = []; // Edges dictionary
@@ -88,7 +86,7 @@ public class AcoMap
 		{
 			TspAlgorithm.AntSystem => this.Cities / this.Settings.Nearest,//1.0 / this.Cities, //this.Settings.Size / this.Settings.Nearest,
 
-			TspAlgorithm.AntColonySystem => 1.0 / this.Settings.Nearest,//( this.Cities * this.Settings.Nearest ),
+			TspAlgorithm.AntColonySystem => 1.0 / ( this.Cities * this.Settings.Nearest ),
 
 			TspAlgorithm.MaxMinAnt => 1.0 / ( ( 1.0 - this.Settings.Rho ) * this.Settings.Nearest ),
 
@@ -96,11 +94,8 @@ public class AcoMap
 		};
 	}
 
-	void BuildAnts()
-	{
-		this.Colony = new Colony( this.Settings, this.Cities, this.Edges );
-	}
-	
+	void BuildAnts() => this.Colony = new Colony( this.Settings, this.Cities, this.Edges );
+		
 
 	/// <summary>
 	/// Indexer, finds edge by head and tail nodes
@@ -144,6 +139,8 @@ public class AcoMap
 
 		Deposit();
 
+		Smooth();
+
 		return result;
 	}
 
@@ -169,15 +166,15 @@ public class AcoMap
 	/// <summary>
 	/// Move AS
 	/// </summary>
-	void MoveAS() => Parallel.ForEach( this.Colony, a => this.Edges.BuildPathAs( a ) );
-		//this.Colony.ForEach( a => this.Edges.BuildPathAs( a ) );
+	void MoveAS() => Parallel.ForEach( this.Colony,  this.Edges.BuildPathAs  );
+		//this.Colony.ForEach(  this.Edges.BuildPathAs  );
 
 
 	/// <summary>
 	/// Move ACS
 	/// </summary>
-	void MoveACS() => Parallel.ForEach( this.Colony, a => this.Edges.BuildPathAcs( a ) );
-	//this.Colony.ForEach( a => this.Edges.BuildPathAcs( a ) );		
+	void MoveACS() => //Parallel.ForEach( this.Colony, this.Edges.BuildPathAcs );
+		this.Colony.ForEach(  this.Edges.BuildPathAcs  );		
 
 	#endregion
 
@@ -187,8 +184,7 @@ public class AcoMap
 	/// <summary>
 	/// Calculates tour length and evaluates the best
 	/// </summary>
-	TspResult Evaluate() => this.Colony.Evaluate();
-	//bool Evaluate() => this.Colony.Evaluate();
+	TspResult Evaluate() => this.Colony.Evaluate();	
 
 	#endregion
 
@@ -198,7 +194,7 @@ public class AcoMap
 	/// <summary>
 	/// Pheromone evaporation (Ant System)
 	/// </summary>
-	void Evaporate() => this.Edges.Evaporate();			
+	void Evaporate() => this.Edges.Evaporate();
 
 	#endregion
 
@@ -208,17 +204,63 @@ public class AcoMap
 	/// <summary>
 	/// Pheromone deposit (Ant System)
 	/// </summary>
-	void Deposit() => this.Colony.Deposit();
+	void Deposit() => this.Colony.Deposit( this.Settings.Elite );
+
+	/// <summary>
+	/// Pheromone smoothing — reduces gap between max and min pheromone
+	/// to counteract stagnation in AS
+	/// </summary>
+	void Smooth()
+	{
+		double max = this.Edges.Values.Max( e => e.Pheromone );
+
+		if( max <= 0 ) return;
+
+		double avg = this.Edges.Values.Average( e => e.Pheromone );
+		double ratio = max / avg;
+
+		if( ratio > 10.0 ) // pheromone concentration too extreme
+		{
+			double factor = 0.9;
+
+			foreach( var edge in this.Edges.Values )
+			{
+				edge.Pheromone = factor * edge.Pheromone + ( 1.0 - factor ) * avg;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Global pheromone update (Ant Colony System)
+	/// Always reinforces global best — this is the canonical ACS rule
+	/// </summary>
+	void UpdateACS() => this.Edges.Update( this.Best );
+
+
+	/// <summary>
+	/// Global pheromone update (Ant Colony System)
+	/// Gradually shifts from iteration-best to global-best as solutions converge
+	/// </summary>
+	//void UpdateACS()
+	//{
+	//	double ratio = this.Best.Tour > 0 ? this.Colony.Current.Tour / this.Best.Tour : 1.0;
+
+	//	// When current ≈ best (ratio → 1.0), prefer global best to intensify
+	//	// When current >> best (ratio >> 1), prefer iteration best to explore
+	//	var best = ratio < 1.05 ? this.Best : this.Colony.Current;
+
+	//	this.Edges.Update( best );
+	//}
 
 	/// <summary>
 	/// Global pheromone update (Ant Colony System)
 	/// </summary>
-	void UpdateACS()
-	{
-		var best = Random.Shared.Next( 5 ) < 2 ? this.Best : this.Colony.Current;
+	//void UpdateACS()
+	//{
+	//	var best = Random.Shared.Next( 5 ) < 2 ? this.Best : this.Colony.Current;
 
-		this.Edges.Update( best );
-	}
+	//	this.Edges.Update( best );
+	//}
 
 	/// <summary>
 	/// Global pheromone update (MAX-MIN Ant System)

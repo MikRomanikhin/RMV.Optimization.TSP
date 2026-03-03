@@ -7,10 +7,11 @@ namespace RMV.Optimization.TSP.Algorithms;
 /// <summary>
 /// Particle Swarm Optimization for TSP
 /// </summary>
-public class ParticleSwarm( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
+public class ParticleSwarm( TspMap map ) : TspAlgorithmBase( map )
 {
 	PsoSettings settings;
-	//readonly TspMap Map = map;
+	List<Particle> swarm;
+	int stagnation = 0;
 
 	protected override void Configure()
 	{
@@ -18,48 +19,85 @@ public class ParticleSwarm( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );
 	}
 
-	protected override TspResult? Initialize() => base.InitializeTour() ?? BuildNearestTour();
-	
+	protected override TspResult? Initialize()
+	{
+		var nearest = base.BuildNearestTour(); //base.InitializeTour()
+
+		this.swarm = InitializeSwarm( nearest );
+
+		return nearest;
+	}
 
 	protected override TspResult? RunEpoch( TspResult best )
 	{
-		// Initialize swarm if not already present (store in a field if needed)
-		// For stateless epoch, re-initialize each time
-		var swarm = InitializeSwarm();
-
 		TspResult current = best;
 
-		foreach( var particle in swarm )
+		// Update all particles in parallel — each reads global best but writes only to its own state
+		Parallel.ForEach( this.swarm, particle =>
 		{
-			particle.Update( current.Path, base.map ); // Update particle based on global best
+			particle.Update( current.Path, base.map );
+		} );
 
-			if( particle.Cost < current.Tour ) // If this particle found a better solution, update global best
+		// Find iteration best
+		var iterBest = this.swarm.MinBy( p => p.Cost );
+
+		if( iterBest.Cost + MARGIN < current.Tour )
+		{
+			// Apply local search only when a new best is found
+			var improved = Parallel2OptSearch( [ .. iterBest.Position ] );//LinKernighanSearch( [ .. iterBest.Position ] );
+
+			iterBest.SetPosition( improved.Path, improved.Tour );
+
+			this.stagnation = 0;
+
+			current = improved;
+		}
+		else
+		{
+			this.stagnation++;
+
+			// Restart worst particles when stagnating to inject diversity
+			if( this.stagnation > 0 && this.stagnation % 500 == 0 )
 			{
-				current = new TspResult( particle.Cost, new List<int>( particle.Position ) );
+				RestartWorst();
 			}
 		}
 
 		return current;
 	}
-	
 
+	List<Particle> InitializeSwarm( TspResult nearest )
+	{
+		List<Particle> particles = [];
 
-	List<Particle> InitializeSwarm()
-	{					
-		List<Particle> swarm = [];
+		// Seed first particle with nearest-neighbour solution
+		particles.Add( new Particle( 0, nearest.Path, nearest.Tour ) );
 
-		int count = 0;
-
-		for( int i = 0; i < settings.Size; i++ )
+		for( int i = 1; i < settings.Size; i++ )
 		{
-			var position = base.map.BuildRandomTour(); 			
+			var tour = base.map.BuildRandomTour();
 
-			Particle particle = new( count++, position.Path, position.Tour );
-		
-			swarm.Add( particle );		
+			particles.Add( new Particle( i, tour.Path, tour.Tour ) );
 		}
 
-		return swarm;
-	}	
-}
+		return particles;
+	}
 
+	/// <summary>
+	/// Replace the worst half of particles with fresh random tours to escape local optima
+	/// </summary>
+	void RestartWorst()
+	{
+		var sorted = this.swarm.OrderBy( p => p.BestCost ).ToList();
+
+		int half = sorted.Count / 2;
+
+		for( int i = half; i < sorted.Count; i++ )
+		{
+			var tour = base.map.BuildRandomTour();
+
+			sorted[ i ].SetPosition( tour.Path, tour.Tour );
+			sorted[ i ].Velocity = [];
+		}
+	}
+}

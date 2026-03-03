@@ -15,8 +15,7 @@ public class Colony : List<Ant>
 	/// <summary>
 	/// Best for all epochs
 	/// </summary>
-	public Ant Best { get; set; }
-	//public Ant Best { get; private set; } = new();
+	public Ant Best { get; set; }	
 
 	#endregion
 
@@ -65,17 +64,7 @@ public class Colony : List<Ant>
 		if( this.Best == null || this.Current.Tour + MARGIN < this.Best.Tour ) this.Best = this.Current.Clone() as Ant;		
 
 		return new TspResult( this.Current.Tour, this.Current.Path );
-	}
-	//public bool Evaluate()
-	//{		
-	//	this.Current = this.MinBy( a => a.Tour );
-
-	//	bool improved = this.Current.Tour + MARGIN < this.Best.Tour;
-
-	//	if( improved ) this.Best = this.Current.Clone() as Ant;	
-
-	//	return improved;
-	//}
+	}	
 
 	const double MARGIN = 0.0001;
 
@@ -87,7 +76,12 @@ public class Colony : List<Ant>
 	/// <summary>
 	/// Pheromone deposit AS
 	/// </summary>
-	public void Deposit() => Parallel.ForEach( this, a => this.Edges.Deposit( a ) );	
+	public void Deposit() => Parallel.ForEach( this, this.Edges.Deposit );
+
+	/// <summary>
+	/// Rank-based pheromone deposit AS with elitist best-ant reinforcement
+	/// </summary>
+	public void Deposit( int eliteCount ) => this.Edges.Deposit( this, eliteCount, this.Best );
 
 	#endregion
 

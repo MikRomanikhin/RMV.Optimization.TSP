@@ -61,10 +61,11 @@ public class MapControl : Panel
    IntRange rangeY = new( 0, MAX_Y );
 
 
-   /// <summary>
-   /// Map
-   /// </summary>
-   public int[,] Map
+	/// <summary>
+	/// Map
+	/// </summary>
+	[DesignerSerializationVisibility( DesignerSerializationVisibility.Hidden )]
+	public int[,] Map
    {
       get => map;
       set
@@ -75,10 +76,11 @@ public class MapControl : Panel
    }
    int[,] map;
 
-   /// <summary>
-   /// Path
-   /// </summary>
-   public ushort[] Path
+	/// <summary>
+	/// Path
+	/// </summary>
+	[DesignerSerializationVisibility( DesignerSerializationVisibility.Hidden )]
+	public ushort[] Path
    {
       get => path;
       set
@@ -89,7 +91,8 @@ public class MapControl : Panel
    }
    ushort[] path;
 
-   public ushort[] Optimal
+	[DesignerSerializationVisibility( DesignerSerializationVisibility.Hidden )]
+	public ushort[] Optimal
    {
       get => opt;
       set
@@ -100,7 +103,8 @@ public class MapControl : Panel
    }
    ushort[] opt;
 
-   public Color Color { get; set; } = Color.Blue;
+	[DesignerSerializationVisibility( DesignerSerializationVisibility.Hidden )]
+	public Color Color { get; set; } = Color.Blue;
 
    #endregion
 

@@ -11,8 +11,13 @@ public class AcoSettings : TspConfigurationBase
 	/// </summary>
 	public int Size { get; set; }
 
+	/// <summary>
+	/// Elite level value
+	/// </summary>
+	public int Elite { get; set; }
+
 	public double Alpha { get; set; } = 1;
-	public double Beta { get; set; }
+	public double Beta { get; set; }	
 
 	/// <summary>
 	/// Evaporation intensity

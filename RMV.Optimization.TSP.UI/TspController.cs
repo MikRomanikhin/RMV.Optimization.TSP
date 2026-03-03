@@ -26,7 +26,7 @@ class TspController( Form1 form )
 			TspAlgorithm.ShortestEdge => new ShortestEdge( this.Map ),
 			TspAlgorithm.FarthestInsert => new LongestEdge( this.Map ),
 			TspAlgorithm.Beam => new BeamSearch( this.Map ),
-			//TspAlgorithm.Pilot => new K_NearestSearch( this.Map ),
+			TspAlgorithm.Pilot => new PilotSearch( this.Map ),
 			
 			TspAlgorithm.IteratedLocal => new IteratedLocalSearch( this.Map ),
 			TspAlgorithm.GuidedLocal => new GuidedLocalSearch( this.Map ),

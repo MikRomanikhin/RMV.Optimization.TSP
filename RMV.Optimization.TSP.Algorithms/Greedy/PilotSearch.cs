@@ -1,28 +1,36 @@
-﻿using RMV.Optimization.TSP.Domain;
+﻿using RMV.Optimization.TSP.Common;
+using RMV.Optimization.TSP.Domain;
 
 namespace RMV.Optimization.TSP.Algorithms;
 
 /// <summary>
 /// Pilot Search for TSP
 /// </summary>
-public class PilotSearch( TspMap map ) : TspAlgorithmBase( map ), ITspAsync
+public class PilotSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 {
-	readonly TspMap Map = map;
+	int nextStart = 0;
 
-	/// <summary>
-	/// Pilot Search async wrapper
-	/// </summary>	
-	public async Task<TspResult> RunAsync(CancellationToken token )
+	protected override void Configure()
 	{
-		TspResult best = null;
-		base.timer.Start();
-
-		await Task.Run( () => { best = RunPilotSearch( 0 ); } );
-
-		base.timer.Stop();
-
-		return best;
+		base.settings = ConfigManager.GetSection<IlsSettings>( "pilot" ) ?? throw new ArgumentNullException( nameof( settings ) );
 	}
+
+	protected override TspResult? Initialize()
+	{
+		this.nextStart = 1;
+
+		return RunPilotSearch( 0 );
+	}
+
+	protected override TspResult RunEpoch( TspResult best )
+	{
+		if( this.nextStart >= base.Cities ) this.nextStart = 0;
+
+		var result = RunPilotSearch( this.nextStart++ );
+
+		return result.Tour + MARGIN < best.Tour ? result : best;
+	}
+
 
 	/// <summary>
 	/// Pilot Search algorithm implementation
@@ -30,7 +38,7 @@ public class PilotSearch( TspMap map ) : TspAlgorithmBase( map ), ITspAsync
 	TspResult RunPilotSearch( int start )
 	{
 		var visited = new bool[ base.Cities ];
-		List<int> path = [ start ]; 
+		List<int> path = [ start ];
 
 		visited[ start ] = true;
 		double tour = 0;
@@ -41,34 +49,42 @@ public class PilotSearch( TspMap map ) : TspAlgorithmBase( map ), ITspAsync
 
 			int nextCity = SelectNextCity( start, currentCity, visited );
 
-			tour += Map[ currentCity, nextCity ].Weight;
+			tour += map[ currentCity, nextCity ].Weight;
 
 			path.Add( nextCity );
 			visited[ nextCity ] = true;
 		}
 
-		tour += Map[ path[ ^1 ], start ].Weight; //complete the tour
+		tour += map[ path[ ^1 ], start ].Weight; //complete the tour
 
 		return new TspResult( tour, path );
 	}
-	
 
-	int SelectNextCity( int start, int current, bool[] visited ) =>	
+
+	int SelectNextCity( int start, int current, bool[] visited ) =>
 		Enumerable.Range( 0, base.Cities ).Where( c => !visited[ c ] ).MinBy( c => SimulateTour( start, current, c, visited ) );
-		
 
+
+	/// <summary>
+	/// Simulates a tour starting from the current city and considering a candidate city.
+	/// </summary>
+	/// <param name="start">The starting city of the tour.</param>
+	/// <param name="current">The current city in the tour.</param>
+	/// <param name="candidate">The candidate city to visit next.</param>
+	/// <param name="visited">An array indicating which cities have been visited.</param>
+	/// <returns></returns>
 	double SimulateTour( int start, int current, int candidate, bool[] visited )
 	{
 		var copyVisited = ( bool[] )visited.Clone();
 		copyVisited[ candidate ] = true;
 
-		double cost = this.Map[ current, candidate ].Weight;
+		double cost = this.map[ current, candidate ].Weight;
 		int lastCity = candidate;
 
 		for( int i = 0; i < base.Cities - 1; i++ )
-		{			
+		{
 			var tmp = Enumerable.Range( 0, base.Cities ).Where( j => !copyVisited[ j ] )
-				.Select( ( j, index ) => new { cost = this.Map[ lastCity, j ].Weight, nextCity = index } ).MinBy( x => x.cost ); 			
+				.Select( j => new { cost = map[ lastCity, j ].Weight, nextCity = j } ).MinBy( x => x.cost );
 
 			int nextCity = tmp?.nextCity ?? -1;
 			double minCost = tmp?.cost ?? int.MaxValue;
@@ -81,38 +97,9 @@ public class PilotSearch( TspMap map ) : TspAlgorithmBase( map ), ITspAsync
 			}
 		}
 
-		cost += this.Map[ lastCity, start ].Weight; // Add cost to return to the starting city
+		cost += map[ lastCity, start ].Weight; // Add cost to return to the starting city
 
 		return cost;
 	}
-
-	#region obsolete
-	//public async Task<TspResult> RunAsync()
-	//{
-	//	var best = new TspResult( double.MaxValue, new int[ base.Cities ] );
-
-	//	base.timer.Start();
-
-	//	await Task.Run( () => 
-	//	{
-	//		int count = 0;
-
-	//		for( int city = 0; city < base.Cities; city++ )
-	//		{
-	//			var result = RunPilotSearch( city );
-
-	//			if( result < best ) //tour length check
-	//			{
-	//				best = result;
-
-	//				base.Draw( best.Tour, ++count, best.Path );
-	//			}
-	//		}
-	//	} );
-
-	//	base.timer.Stop();
-
-	//	return best;
-	//}
-	#endregion
+	
 }
