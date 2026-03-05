@@ -8,116 +8,46 @@ namespace RMV.Optimization.TSP.Algorithms;
 /// Ant Colony Optimization for TSP
 /// </summary>
 public class AntColonySearch( TspMap map ) : TspAlgorithmBase( map )
-{
-
-	#region Initialize ---------------------------------------------------------	
-
+{	
 	AcoMap Map;
 	AcoSettings settings;	
 
+	/// <summary>
+	/// Configures the current instance by loading and assigning the required settings section.
+	/// </summary>
+	/// <remarks>
+	/// Method overrides the base configuration logic to retrieve the 'aco' section from the configuration manager and
+	/// assign it to the settings properties. Ensure that the configuration contains a valid 'aco' section compatible with the expected type.
+	/// </remarks>	
 	protected override void Configure()
 	{
-		this.settings = ConfigManager.GetSection<AcoSettings>( "aco" );
-		
+		this.settings = ConfigManager.GetSection<AcoSettings>( "aco" );		
 		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );			
 	}
 
-	
-
+	/// <summary>
+	/// Initializes the ant colony optimization process and runs the first epoch to establish a baseline solution.
+	/// </summary>
+	/// <remarks>
+	/// Method prepares the internal state for subsequent optimization by constructing the initial
+	/// tour and setting up the ant colony map. It should be called before performing further optimization steps.
+	/// </remarks>
+	/// <returns>TspResult representing the result of the initial epoch, or null if initialization fails</returns>
 	protected override TspResult? Initialize()
 	{
 		var result = base.BuildNearestTour();
 		this.settings.Nearest = result.Tour;
 
 		this.Map = new AcoMap( this.map, this.settings );
-
-		return result;
-	}
-
-	protected override TspResult RunEpoch( TspResult best ) => this.Map.RunEpoch( best );
-
-
-	#endregion
-
-
-	#region obsolete
+				
+		return this.Map.RunEpoch( null );  // Run first epoch to establish ant baseline
+	}	
 
 	/// <summary>
-	/// ACO async wrapper
-	/// </summary>	
-	//public async Task<TspResult> RunAsync(CancellationToken token )
-	//{	
-	//	base.timer.Start();			
-
-	//	int count = 0;
-	//	int noChanges = 0;		
-
-	//	await Task.Run( () => 
-	//	{
-	//		while( noChanges++ < settings.Limit )
-	//		{
-	//			bool improved = this.Map.RunEpoch( noChanges );
-
-	//			if( improved )
-	//			{
-	//				noChanges = 0;
-
-	//				base.Draw( this.Map.Best.Tour, count, this.Map.Best.Path );
-	//			}
-
-	//			if( ++count % settings.Redraw == 0 ) base.Draw( this.Map.Best.Tour, count );						
-	//		}
-
-	//		base.Draw( this.Map.Best.Tour, count, this.Map.Best.Path );
-	//	} );
-
-	//	base.timer.Stop();
-
-	//	return new TspResult( this.Map.Best.Tour, this.Map.Best.Path );
-	//}
-
-
-
-	//public async Task<TspResult> RunAsync()
-	//{
-	//	base.timer.Start();
-
-	//	var result = new NearestNeighbour( map ).GetNearest( 0 );
-	//	this.settings.Nearest = result.Tour;
-
-	//	//Ant best = new() { Tour = result.Tour, Path = [..result.Path] };	
-
-	//	int count = 0;
-	//	int noChanges = 0;
-
-	//	await Task.Run( () => {
-	//		while( true )
-	//		{
-	//			this.Map.RunEpoch( algorithm );//, result.Path[ 0 ] );
-
-	//			if( this.Map.Improved ) noChanges = 0;
-
-	//			//var current = this.Map.LocalBest; //local best
-	//			//if( current.Tour + MARGIN < best.Tour )  
-	//			//{
-	//			//	best = current.Clone() as Ant; //global best
-
-	//			//	this.Map.GlobalBest = best;
-
-	//			//	noChanges = 0;	//base.Draw( best.Tour, count, best.Path );
-	//			//}
-
-	//			if( ++count % settings.Redraw == 0 ) base.Draw( this.Map.Best.Tour, count, this.Map.Best.Path );
-
-	//			if( ++noChanges > settings.Limit ) break;
-	//		}
-
-	//		base.Draw( this.Map.Best.Tour, ++count, this.Map.Best.Path );
-	//	} );
-
-	//	base.timer.Stop();
-
-	//	return new TspResult { Tour = this.Map.Best.Tour, Path = this.Map.Best.Path };
-	//}
-	#endregion
+	/// Runs a single epoch of the ant colony optimization process using the provided best solution as a reference.
+	/// </summary>
+	/// <param name="best">The current best solution to guide the optimization process.</param>
+	/// <returns>The result of the epoch, potentially updating the best solution.</returns>
+	protected override TspResult RunEpoch( TspResult best ) => this.Map.RunEpoch( best );	
+	
 }

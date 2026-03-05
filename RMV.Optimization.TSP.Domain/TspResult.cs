@@ -35,8 +35,8 @@ public class TspResult//( double tour, IList<int> path ) //: IEquatable<TspResul
 	const double MARGIN = 0.0001;
 	public static bool operator <( TspResult a, TspResult b ) => a.Tour + MARGIN < b.Tour;
 	public static bool operator >( TspResult a, TspResult b ) => a.Tour > b.Tour + MARGIN;
-
-	public TspResult Clone() => new (this.Tour, this.Path );	
+		
+	public TspResult Clone() => new( this.Tour, [ .. this.Path ] );
 
 	public override string ToString() => $"Tour:{this.Tour:0.##} Path:[{string.Join( ',', this.Path )}]";	
 

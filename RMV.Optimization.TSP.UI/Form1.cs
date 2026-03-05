@@ -147,6 +147,12 @@ public partial class Form1 : Form
 	/// </summary>		
 	async void PilotMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.Pilot );
 
+	/// <summary>
+	/// K-Nearest Neighbor
+	/// </summary>	
+	//async void KNearestMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.KNearest );
+
+
 
 	#endregion
 
@@ -419,6 +425,5 @@ public partial class Form1 : Form
 		//nnWorker.ReportProgress( ea.Counter * 100 / this.map.Cities );		
 	}
 
-	#endregion
-		
+	#endregion	
 }

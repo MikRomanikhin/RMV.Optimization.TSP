@@ -7,7 +7,7 @@ namespace RMV.Optimization.TSP.ACO;
 /// <summary>
 /// ACO Map
 /// </summary>
-public class AcoMap 
+public class AcoMap
 {
 
 	#region Properties --------------------------------------------------------			
@@ -15,11 +15,11 @@ public class AcoMap
 	/// <summary>
 	/// Best for all epochs
 	/// </summary>
-	public Ant Best 
-	{ 
+	public Ant Best
+	{
 		get => this.Colony.Best;
-		set => this.Colony.Best = value; 
-	}	
+		set => this.Colony.Best = value;
+	}
 
 	#endregion
 
@@ -37,7 +37,7 @@ public class AcoMap
 
 		Initialize();
 	}
-	
+
 
 	readonly TspAlgorithm Algorithm; //ACO algorithm
 	readonly AcoSettings Settings; // Configuration parameters
@@ -45,17 +45,18 @@ public class AcoMap
 
 	readonly TspNodes Nodes = []; // Nodes collection	
 	readonly AcoEdges Edges = []; // Edges dictionary
-	
-	Colony Colony;   // Ants collection	
+
+	Colony Colony;     // Ants collection	
+	int noChanges = 0; // Stagnation counter for MMA
 
 	/// <summary>
 	/// Initialize Map and Ants
 	/// </summary>	
 	void Initialize()
-	{	
+	{
 		BuildEdges();
 
-		BuildAnts();		
+		BuildAnts();
 	}
 
 	/// <summary>
@@ -64,7 +65,7 @@ public class AcoMap
 	void BuildEdges()
 	{
 		this.Edges.Settings = this.Settings;
-		
+
 		double pheromone = InitPheromone();
 
 		for( int i = 0; i < this.Cities; i++ )
@@ -73,17 +74,16 @@ public class AcoMap
 
 			for( int j = i + 1; j < this.Cities; j++ )
 			{
-				var to = this.Nodes[ j ];				
+				var to = this.Nodes[ j ];
 
-				this.Edges.Add( new AcoEdge( from.ID, to.ID, from.DistanceTo( to ), pheromone, Settings ) );				
+				this.Edges.Add( new AcoEdge( from.ID, to.ID, from.DistanceTo( to ), pheromone, Settings ) );
 			}
-		}		
+		}
 	}
 
 	double InitPheromone()
 	{
-		return this.Algorithm switch 
-		{
+		return this.Algorithm switch {
 			TspAlgorithm.AntSystem => this.Cities / this.Settings.Nearest,//1.0 / this.Cities, //this.Settings.Size / this.Settings.Nearest,
 
 			TspAlgorithm.AntColonySystem => 1.0 / ( this.Cities * this.Settings.Nearest ),
@@ -95,7 +95,7 @@ public class AcoMap
 	}
 
 	void BuildAnts() => this.Colony = new Colony( this.Settings, this.Cities, this.Edges );
-		
+
 
 	/// <summary>
 	/// Indexer, finds edge by head and tail nodes
@@ -112,19 +112,39 @@ public class AcoMap
 	/// </summary>
 	public TspResult RunEpoch( TspResult best )
 	{
+		//SyncBest( best );
+
 		Restart();
 
-		return this.Algorithm switch 
-		{
+		return this.Algorithm switch {
 			TspAlgorithm.AntSystem => RunAS(),
 
 			TspAlgorithm.AntColonySystem => RunACS(),
 
-			//TspAlgorithm.MaxMinAnt => RunMMA( noChanges ),
+			TspAlgorithm.MaxMinAnt => RunMMA(),
 
 			_ => throw new InvalidEnumArgumentException( $"Unknown method:{Algorithm}" ),
 		};
 	}
+
+	/// <summary>
+	/// Seeds colony's global best from the external best
+	/// if the colony hasn't found anything better yet
+	/// </summary>
+	//void SyncBest( TspResult best )
+	//{
+	//	if( best == null ) return;
+
+	//	if( this.Best == null || best.Tour + 0.0001 < this.Best.Tour )
+	//	{
+	//		this.Best = new Ant( best.Tour, [ .. best.Path ] );
+	//	}
+	//}
+
+	/// <summary>
+	/// Returns colony's global best as a TspResult
+	/// </summary>
+	//TspResult GetBestResult() => new( this.Best.Tour, [ .. this.Best.Path ] );
 
 	/// <summary>
 	/// Ant System Tour
@@ -158,6 +178,38 @@ public class AcoMap
 		return result;
 	}
 
+	/// <summary>
+	/// Max-Min Ant System Tour
+	/// </summary>
+	TspResult RunMMA()
+	{
+		MoveAS();
+
+		var result = Evaluate();
+
+		// MMAS checks stagnation to optionally reset pheromone trails
+		if( this.noChanges > Settings.Stagnation )
+		{
+			Reset();
+			this.noChanges = 0;
+		}
+		else
+		{
+			this.noChanges++;
+		}
+
+		// Evaluate() already updates this.Best if Current < Best.
+		// If Current == Best (meaning an improvement happened this round), reset stagnation.
+		if( this.Colony.Current == this.Best )
+		{
+			this.noChanges = 0;
+		}
+
+		UpdateMMA();
+
+		return result; // returning iteration best so Base class tracks its own noChanges independently
+	}
+
 	#endregion
 
 
@@ -166,15 +218,15 @@ public class AcoMap
 	/// <summary>
 	/// Move AS
 	/// </summary>
-	void MoveAS() => Parallel.ForEach( this.Colony,  this.Edges.BuildPathAs  );
-		//this.Colony.ForEach(  this.Edges.BuildPathAs  );
+	void MoveAS() => Parallel.ForEach( this.Colony, this.Edges.BuildPathAs );
+	//this.Colony.ForEach(  this.Edges.BuildPathAs  );
 
 
 	/// <summary>
 	/// Move ACS
 	/// </summary>
 	void MoveACS() => //Parallel.ForEach( this.Colony, this.Edges.BuildPathAcs );
-		this.Colony.ForEach(  this.Edges.BuildPathAcs  );		
+		this.Colony.ForEach( this.Edges.BuildPathAcs );
 
 	#endregion
 
@@ -184,7 +236,7 @@ public class AcoMap
 	/// <summary>
 	/// Calculates tour length and evaluates the best
 	/// </summary>
-	TspResult Evaluate() => this.Colony.Evaluate();	
+	TspResult Evaluate() => this.Colony.Evaluate();
 
 	#endregion
 
@@ -207,8 +259,7 @@ public class AcoMap
 	void Deposit() => this.Colony.Deposit( this.Settings.Elite );
 
 	/// <summary>
-	/// Pheromone smoothing — reduces gap between max and min pheromone
-	/// to counteract stagnation in AS
+	/// Pheromone smoothing — reduces gap between max and min pheromone to counteract stagnation in AS
 	/// </summary>
 	void Smooth()
 	{
@@ -238,42 +289,35 @@ public class AcoMap
 
 
 	/// <summary>
-	/// Global pheromone update (Ant Colony System)
-	/// Gradually shifts from iteration-best to global-best as solutions converge
-	/// </summary>
-	//void UpdateACS()
-	//{
-	//	double ratio = this.Best.Tour > 0 ? this.Colony.Current.Tour / this.Best.Tour : 1.0;
-
-	//	// When current ≈ best (ratio → 1.0), prefer global best to intensify
-	//	// When current >> best (ratio >> 1), prefer iteration best to explore
-	//	var best = ratio < 1.05 ? this.Best : this.Colony.Current;
-
-	//	this.Edges.Update( best );
-	//}
-
-	/// <summary>
-	/// Global pheromone update (Ant Colony System)
-	/// </summary>
-	//void UpdateACS()
-	//{
-	//	var best = Random.Shared.Next( 5 ) < 2 ? this.Best : this.Colony.Current;
-
-	//	this.Edges.Update( best );
-	//}
-
-	/// <summary>
 	/// Global pheromone update (MAX-MIN Ant System)
 	/// </summary>
 	void UpdateMMA()
 	{
-		var best = Random.Shared.Next( 5 ) < 1 ? this.Best : this.Colony.Current;
+		// Decide which ant updates pheromone.
+		// Standard MMAS uses iteration-best mostly, but global-best periodically or when stagnating.
+		Ant guide;
+		if( this.Best == null )
+		{
+			guide = this.Colony.Current;
+		}
+		else // Example rule: use global best every 25 iterations or if stagnating. Otherwise iteration best.
+		{			
+			bool useGlobal = ( this.noChanges % 25 == 0 ) || ( this.noChanges > this.Settings.Stagnation / 2 );
 
-		double max = 1.0 / ( ( 1.0 - this.Settings.Rho ) * best.Tour );
-		double min = ( max * ( 1.0 - this.Settings.P ) ) / ( ( this.Cities * 0.5 - 1.0 ) * this.Settings.P );
-		//double min = ( max * ( 1.0 - this.Settings.P * this.Cities ) ) / ( ( this.Cities * 0.5 - 1.0 ) * this.Settings.P * this.Cities );
+			guide = useGlobal ? this.Best : this.Colony.Current;
+		}
+				
+		double max = 1.0 / ( ( 1.0 - this.Settings.Rho ) * this.Best.Tour );  // MMAS bounds
 
-		this.Edges.Update( best, min, max );
+		// Simplify the min calculation to avoid numerical issues that clamp trails to zero
+		double p = Math.Max( this.Settings.P, 0.05 );
+		double root = Math.Pow( p, 1.0 / this.Cities );
+		double min = ( max * ( 1.0 - root ) ) / ( ( this.Cities / 2.0 - 1.0 ) * root );
+
+		if( min <= 0 || double.IsNaN( min ) ) min = max / ( 2.0 * this.Cities ); // Fallback to safe lower bound
+		if( min > max ) min = max;
+
+		this.Edges.Update( guide, min, max );
 	}
 
 	#endregion
@@ -300,99 +344,6 @@ public class AcoMap
 
 		this.Edges.Reset( amount );
 	}
-
-	#endregion
-
-
-	#region obsolete
-	//public bool RunEpoch( int noChanges )
-	//{
-	//	Restart();
-
-	//	return this.Algorithm switch 
-	//	{
-	//		TspAlgorithm.AntSystem => RunAS(),
-
-	//		TspAlgorithm.AntColonySystem => RunACS(),
-
-	//		TspAlgorithm.MaxMinAnt => RunMMA( noChanges ),
-
-	//		_ => throw new InvalidEnumArgumentException( $"Unknown method:{Algorithm}" ),
-	//	};
-	//}
-	/// <summary>
-	/// Max-Min Ant System Tour
-	/// </summary>
-	//TspResult RunMMA( int noChanges )
-	//{
-	//	bool improved = false;
-
-	//	if( noChanges > Settings.Stagnation )
-	//	{
-	//		Reset();
-	//		improved = true;
-	//	}
-
-	//	MoveAS();
-
-	//	improved = improved | Evaluate();
-
-	//	UpdateMMA();
-
-	//	return improved;
-	//}
-
-	///// <summary>
-	///// Ant System Tour
-	///// </summary>
-	//bool RunAS()
-	//{
-	//	MoveAS();
-
-	//	bool improved = Evaluate();
-
-	//	Evaporate();
-
-	//	Deposit();
-
-	//	return improved;
-	//}
-
-	///// <summary>
-	///// Ant Colony System Tour
-	///// </summary>
-	//bool RunACS()
-	//{
-	//	MoveACS();
-
-	//	bool improved = Evaluate();		
-
-	//	UpdateACS();
-
-	//	return improved;
-	//}
-
-	///// <summary>
-	///// Max-Min Ant System Tour
-	///// </summary>
-	//bool RunMMA( int noChanges )
-	//{
-	//	bool improved = false;
-
-	//	if( noChanges > Settings.Stagnation )
-	//	{
-	//		Reset();
-	//		improved = true;
-	//	}
-
-	//	MoveAS();
-
-	//	improved = improved | Evaluate();		
-
-	//	UpdateMMA();
-
-	//	return improved;
-	//}
 
 	#endregion
 }

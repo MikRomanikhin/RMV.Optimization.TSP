@@ -10,11 +10,18 @@ public class PilotSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 {
 	int nextStart = 0;
 
+	/// <summary>
+	/// Configures the current instance by loading application settings from the configuration section named "pilot."
+	/// </summary>	
 	protected override void Configure()
 	{
 		base.settings = ConfigManager.GetSection<IlsSettings>( "pilot" ) ?? throw new ArgumentNullException( nameof( settings ) );
 	}
 
+	/// <summary>
+	/// Initializes the Pilot Search algorithm by setting the starting city.
+	/// </summary>
+	/// <returns></returns>
 	protected override TspResult? Initialize()
 	{
 		this.nextStart = 1;
@@ -22,6 +29,12 @@ public class PilotSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 		return RunPilotSearch( 0 );
 	}
 
+	/// <summary>
+	/// Performs a single optimization epoch and returns the best result found between the current and previous best
+	/// solutions.
+	/// </summary>
+	/// <param name="best">The current best solution to compare against the result of this epoch. Must not be null.</param>
+	/// <returns>A TspResult representing the better of the provided best solution and the result of this epoch.</returns>
 	protected override TspResult RunEpoch( TspResult best )
 	{
 		if( this.nextStart >= base.Cities ) this.nextStart = 0;

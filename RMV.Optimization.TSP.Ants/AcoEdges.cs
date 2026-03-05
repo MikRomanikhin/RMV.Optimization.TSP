@@ -60,19 +60,7 @@ public class AcoEdges : Dictionary<(int, int), AcoEdge>
 
 		ant.Tour = Evaluate( ant );
 	}
-	//public void BuildPathAcs( Ant ant )
-	//{		
-	//	for( int city = 0; city < ant.Cities - 2; city++ )
-	//	{			
-	//		int nextCity = ( Random.Shared.NextDouble() < this.Settings.Greedy ) ? GreedySelect( ant ) : ProbSelect( ant );			
-
-	//		this[ ant.CurrentCity, nextCity ].Update(); //local pheromone update
-
-	//		ant.Move( nextCity );
-	//	}
-
-	//	ant.Tour = Evaluate( ant );
-	//}
+	
 
 	/// <summary>
 	/// Calculate tour length for the ant
@@ -118,26 +106,7 @@ public class AcoEdges : Dictionary<(int, int), AcoEdge>
 
 		return selection[ ^1 ].node; // fallback to last candidate
 	}
-	//int ProbSelect( Ant ant )
-	//{
-	//	(int node, double chance)[] selection = BuildWheel( ant );
-
-	//	double rand = Random.Shared.NextDouble();
-
-	//	int index = 0;
-
-	//	double p = selection[ index ].chance;
-	//	int city = selection[ index ].node;
-
-	//	while( p < rand )
-	//	{
-	//		if( ++index > selection.Length - 1 ) index = 0;
-
-	//		p += selection[ index ].chance;
-	//	}
-
-	//	return selection[ index ].node;
-	//}
+	
 
 	/// <summary>
 	/// Builds Roulette Wheel selection probability
@@ -152,14 +121,7 @@ public class AcoEdges : Dictionary<(int, int), AcoEdge>
 
 		return [ .. candidates.Select( city => (city, this[ ant.CurrentCity, city ].Chance / denom) ) ];
 	}
-	//(int, double)[] BuildWheel( Ant ant )
-	//{
-	//	var candidates = GetCandidates( ant );
-
-	//	double denom = candidates.Sum( city => this[ ant.CurrentCity, city ].Chance );
-
-	//	return candidates.Select( city => ( city, this[ ant.CurrentCity, city ].Chance / denom ) ).ToArray();
-	//}	
+	
 
 	/// <summary>
 	/// Finds list of cities candidates
@@ -174,9 +136,7 @@ public class AcoEdges : Dictionary<(int, int), AcoEdge>
 
 		// If candidate list is too restrictive, fall back to all available cities
 		return nearest.Any() ? nearest : ant.Available;
-	}
-	//IEnumerable<int> GetCandidates( Ant ant ) =>	ant.Available.Select( n => this[ ant.CurrentCity, n ] ).OrderBy( e => e.Weight )
-	//	.Take( this.Settings.Neighbours ).Select( e => e.Tail == ant.CurrentCity ? e.Head : e.Tail );		
+	}			
 
 	#endregion
 
@@ -207,17 +167,7 @@ public class AcoEdges : Dictionary<(int, int), AcoEdge>
 			edge.Pheromone += amount;
 		}
 	}
-	//public void Deposit( Ant ant )
-	//{
-	//	double amount = this.Settings.Q / ant.Tour;
-
-	//	for( int i = 0; i < ant.Cities - 1; i++ )
-	//	{
-	//		var edge = i < ant.Cities - 1 ? this[ ant.Path[ i ], ant.Path[ i + 1 ] ] : this[ ant.Path[ i ], ant.Path[ 0 ] ];
-
-	//		edge.Pheromone += amount;
-	//	}		
-	//}
+	
 
 	/// <summary>
 	/// Rank-based pheromone deposit with elitist best-ant reinforcement
@@ -257,31 +207,7 @@ public class AcoEdges : Dictionary<(int, int), AcoEdge>
 
 			edge.Pheromone += amount;
 		}
-	}
-
-	/// <summary>
-	/// Rank-based pheromone deposit (Ant System with elitism)
-	/// </summary>
-	/// <param name="ants">colony ants sorted by tour length ascending</param>
-	/// <param name="eliteCount">number of top ants that deposit pheromone</param>
-	//public void Deposit( IEnumerable<Ant> ants, int eliteCount )
-	//{
-	//	var ranked = ants.OrderBy( a => a.Tour ).Take( eliteCount ).ToList();
-
-	//	for( int rank = 0; rank < ranked.Count; rank++ )
-	//	{
-	//		var ant = ranked[ rank ];
-	//		double weight = ( double )( eliteCount - rank ) / eliteCount;
-	//		double amount = weight * this.Settings.Q / ant.Tour;
-
-	//		for( int i = 0; i < ant.Cities; i++ )
-	//		{
-	//			var edge = i < ant.Cities - 1 ? this[ ant.Path[ i ], ant.Path[ i + 1 ] ] : this[ ant.Path[ i ], ant.Path[ 0 ] ];
-
-	//			edge.Pheromone += amount;
-	//		}
-	//	}
-	//}
+	}	
 
 	/// <summary>
 	/// Pheromone update (Ant Colony System)
@@ -307,20 +233,34 @@ public class AcoEdges : Dictionary<(int, int), AcoEdge>
 
 	/// <summary>
 	/// Pheromone update (Max-Min Ant System)
+	/// 1. Evaporate ALL edges
+	/// 2. Deposit only on best ant's path
+	/// 3. Clamp all pheromone values to [min, max]
 	/// </summary>	
 	public void Update( Ant ant, double min, double max )
 	{
-		double p1 = 1.0 - this.Settings.P1;
-		double p2 = this.Settings.P1 / ant.Tour;
+		double rho = this.Settings.Rho;
+		double deposit = 1.0 / ant.Tour;
 
+		// Step 1: Evaporate all edges
+		foreach( var edge in this.Values )
+		{
+			edge.Pheromone *= ( 1.0 - rho );
+		}
+
+		// Step 2: Deposit on best ant's path only
 		for( int i = 0; i < ant.Cities; i++ )
 		{
 			var edge = i < ant.Cities - 1 ? this[ ant.Path[ i ], ant.Path[ i + 1 ] ] : this[ ant.Path[ i ], ant.Path[ 0 ] ];
 
-			double amount = p1 * edge.Pheromone + p2;
+			edge.Pheromone += deposit;
+		}
 
-			edge.Pheromone = Math.Clamp( amount, min, max );
-		}		
+		// Step 3: Clamp all edges to [min, max]
+		foreach( var edge in this.Values )
+		{
+			edge.Pheromone = Math.Clamp( edge.Pheromone, min, max );
+		}
 	}
 
 	#endregion
@@ -334,112 +274,5 @@ public class AcoEdges : Dictionary<(int, int), AcoEdge>
 	public void Reset( double amount ) => Parallel.ForEach( this.Values, v => v.Reset( amount ) );
 
 	#endregion
-
-
-	#region obsolete
-	//static double RandomDouble( double limit ) => Random.Shared.NextDouble() * limit;
-	//int GreedySelect( Ant ant ) => Enumerable.Range( 0, ant.Cities ).Where( i => ant.IsAvailable( i ) ).MaxBy( i => this[ ant.CurrentCity, i ].Choice );
-	//int GreedySelect( Ant ant ) => Enumerable.Range( 0, ant.Cities ).Where( i => !ant.Visited[ i ] ).MaxBy( i => this[ ant.CurrentCity, i ].Choice );
-	//double GetDenominator( Ant ant ) => 
-	//	Enumerable.Range( 0, ant.Cities ).Where( city => !ant.Visited[ city ] && city != ant.CurrentCity ).Sum( city => this[ ant.CurrentCity, city ].Choice );
-	//double GetDenominator( Ant ant ) => Enumerable.Range( 0, ant.Cities ).Where( i => ant.IsAvailable( i ) ).Sum( i => this[ ant.CurrentCity, i ].Choice );
-	//int ProbSelect( Ant ant )
-	//{
-	//	var selection = BuildWheel( ant );	
-	//	double rand = Random.Shared.NextDouble();
-	//	int index = 0;
-	//	double p = selection[ index ].Item2;
-	//	int city = selection[ index ].Item1;
-	//	while( p < rand )
-	//	{
-	//		if( ++index > selection.Length - 1 ) index = 0;			
-	//		p += selection[ index ].Item2;
-	//	}
-	//	return selection[ index ].Item1;
-	//}
-	//Tuple<int, double>[] BuildWheel( Ant ant )	
-	//{
-	//	var candidates = GetCandidates( ant );
-	//	double denom = candidates.Sum( city => this[ ant.CurrentCity, city ].Chance );
-	//	return candidates.Select( city => Tuple.Create( city, this[ ant.CurrentCity, city ].Chance / denom ) ).ToArray();
-	//}	
-	//int ProbSelect( Ant ant )
-	//{	
-	//	var (rand, selection) = BuildWheel( ant );
-	//	double p = selection[ 0 ];
-	//	int city = 0;
-	//	while( p < rand )
-	//	{
-	//		if( ++city == ant.Cities ) city = 0;
-	//		p += selection[ city ];
-	//	}
-	//	return city;
-	//}
-	//double[] BuildWheel( Ant ant )
-	//{
-	//	var selection = new double[ ant.Cities ];	
-	//	double denom = GetDenominator( ant );		
-	//	for( int to = 0; to < ant.Cities; to++ )
-	//	{
-	//		if( !ant.Visited[ to ] ) selection[ to ] = this[ ant.CurrentCity, to ].Choice / denom;			
-	//	}
-	//	return selection;
-	//}	
-	//int GreedySelect( Ant ant )
-	//{
-	//	int city = -1;
-	//	double max = 0;
-	//	for( int to = 0; to < ant.Cities; to++ )
-	//	{
-	//		if( ant.Visited[ to ] ) continue;
-	//		double choice = this[ ant.CurrentCity, to ].Choice;
-	//		if( choice > max )
-	//		{
-	//			max = choice;
-	//			city = to;
-	//		}
-	//	}
-	//	return city;
-	//}
-	//double GetDenominator( int from, Ant ant )
-	//{
-	//	double sum = 0.0;
-	//	for( int to = 0; to < ant.Cities; to++ )
-	//	{
-	//		if( to != from && !ant.Visited[ to ] ) sum += this[ from, to ].Choice;
-	//	}
-	//	return sum;
-	//}	
-	//double Evaluate( Ant ant )
-	//{
-	//	double tour = 0;
-	//	for( int i = 1; i < ant.Cities; i++ )
-	//	{
-	//		tour += this[ ant.Path[ i - 1 ], ant.Path[ i ] ].Weight;
-	//	}
-	//	tour += GetLastEdge( ant ).Weight; //last node - start node		
-	//	return tour;
-	//}
-	//public void DepositAcs( Ant ant )
-	//{
-	//	double p1 = 1.0 - this.Settings.P1;
-	//	double p2 = this.Settings.P1 / ant.Tour;
-	//	Parallel.For( 0, ant.Cities - 1, i => {
-	//		var edge =  this[ ant.Path[ i ], ant.Path[ i + 1 ] ];
-	//		edge.Pheromone += ( p1 * edge.Pheromone + p2 );
-	//	} );
-	//	var last = GetLastEdge( ant );
-	//	last.Pheromone += ( p1 * last.Pheromone + p2 ); 
-	//}
-	//public void DepositAcs( Ant ant )
-	//{
-	//	for( int city = 0; city < ant.Cities - 1; city++ ) 
-	//	{		
-	//		var edge = this[ ant.Path[ city ], ant.Path[ city + 1 ] ];
-	//		edge.Pheromone += ( ( 1.0 - this.Settings.P1 ) * edge.Pheromone + this.Settings.P1 / ant.Tour );//edge.Weight );
-	//	}
-	//	var last = GetLastEdge( ant );
-	//	last.Pheromone += ( ( 1.0 - this.Settings.P1 ) * last.Pheromone + this.Settings.P1 / ant.Tour ); //last.Weight ); ;
-	//}
-	#endregion
+	
 }

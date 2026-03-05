@@ -42,7 +42,7 @@
 			GreedyCombinedMenuItem = new ToolStripMenuItem();
 			beamSearchMenuItem = new ToolStripMenuItem();
 			PilotMenuItem = new ToolStripMenuItem();
-			dFSToolStripMenuItem = new ToolStripMenuItem();
+			kNearestMenuItem = new ToolStripMenuItem();
 			AnnealingMenuItem = new ToolStripMenuItem();
 			EvolutionMenuItem = new ToolStripMenuItem();
 			GeneticAlgorithmMenuItem = new ToolStripMenuItem();
@@ -50,7 +50,6 @@
 			DifferentialEvolutionMenuItem = new ToolStripMenuItem();
 			EvolutionaryProgrammingMenuItem = new ToolStripMenuItem();
 			LearningClassifierMenuItem = new ToolStripMenuItem();
-			kNearestToolStripMenuItem = new ToolStripMenuItem();
 			stochasticToolStripMenuItem = new ToolStripMenuItem();
 			iteratedLocalMenuItem = new ToolStripMenuItem();
 			guidedLocalMenuItem = new ToolStripMenuItem();
@@ -58,6 +57,7 @@
 			RandomizedAdaptiveMenuItem = new ToolStripMenuItem();
 			ScatterSearchMenuItem = new ToolStripMenuItem();
 			TabooSearchMenuItem = new ToolStripMenuItem();
+			RandomSearchMenuItem = new ToolStripMenuItem();
 			antsToolStripMenuItem = new ToolStripMenuItem();
 			AntColonyMenuItem = new ToolStripMenuItem();
 			AntSystemMenuItem = new ToolStripMenuItem();
@@ -72,7 +72,6 @@
 			tableLayoutPanel2 = new TableLayoutPanel();
 			buttonPause = new Button();
 			buttonStop = new Button();
-			RandomSearchMenuItem = new ToolStripMenuItem();
 			menuStrip1.SuspendLayout();
 			statusStrip.SuspendLayout();
 			tableLayoutPanel1.SuspendLayout();
@@ -130,14 +129,14 @@
 			// 
 			// computeToolStripMenuItem
 			// 
-			computeToolStripMenuItem.DropDownItems.AddRange( new ToolStripItem[] { NearestNeighborMenuItem, dFSToolStripMenuItem, AnnealingMenuItem, EvolutionMenuItem, kNearestToolStripMenuItem, stochasticToolStripMenuItem, antsToolStripMenuItem, LearningMenuItem } );
+			computeToolStripMenuItem.DropDownItems.AddRange( new ToolStripItem[] { NearestNeighborMenuItem, AnnealingMenuItem, EvolutionMenuItem, stochasticToolStripMenuItem, antsToolStripMenuItem, LearningMenuItem } );
 			computeToolStripMenuItem.Name = "computeToolStripMenuItem";
 			computeToolStripMenuItem.Size = new Size( 69, 20 );
 			computeToolStripMenuItem.Text = "Compute";
 			// 
 			// NearestNeighborMenuItem
 			// 
-			NearestNeighborMenuItem.DropDownItems.AddRange( new ToolStripItem[] { NearestNeighbourMenuItem, ShortestEdgeMenuItem, GreedyCombinedMenuItem, beamSearchMenuItem, PilotMenuItem } );
+			NearestNeighborMenuItem.DropDownItems.AddRange( new ToolStripItem[] { NearestNeighbourMenuItem, ShortestEdgeMenuItem, GreedyCombinedMenuItem, beamSearchMenuItem, PilotMenuItem, kNearestMenuItem } );
 			NearestNeighborMenuItem.Name = "NearestNeighborMenuItem";
 			NearestNeighborMenuItem.Size = new Size( 180, 22 );
 			NearestNeighborMenuItem.Text = "Greedy";
@@ -178,12 +177,10 @@
 			PilotMenuItem.Text = "Pilot Method";
 			PilotMenuItem.Click +=  PilotMenuItem_Click ;
 			// 
-			// dFSToolStripMenuItem
+			// kNearestMenuItem
 			// 
-			dFSToolStripMenuItem.Name = "dFSToolStripMenuItem";
-			dFSToolStripMenuItem.Size = new Size( 180, 22 );
-			dFSToolStripMenuItem.Text = "Branch&Bound";
-			dFSToolStripMenuItem.Click +=  DfsMenuItem_Click ;
+			kNearestMenuItem.Name = "kNearestMenuItem";
+			kNearestMenuItem.Size = new Size( 167, 22 );
 			// 
 			// AnnealingMenuItem
 			// 
@@ -234,12 +231,6 @@
 			LearningClassifierMenuItem.Text = "Learning Classifier";
 			LearningClassifierMenuItem.Click +=  LearningClassifierMenuItem_Click ;
 			// 
-			// kNearestToolStripMenuItem
-			// 
-			kNearestToolStripMenuItem.Name = "kNearestToolStripMenuItem";
-			kNearestToolStripMenuItem.Size = new Size( 180, 22 );
-			kNearestToolStripMenuItem.Text = "K-Nearest";
-			// 
 			// stochasticToolStripMenuItem
 			// 
 			stochasticToolStripMenuItem.DropDownItems.AddRange( new ToolStripItem[] { iteratedLocalMenuItem, guidedLocalMenuItem, variableNeighborhoodpMenuItem, RandomizedAdaptiveMenuItem, ScatterSearchMenuItem, TabooSearchMenuItem, RandomSearchMenuItem } );
@@ -288,6 +279,13 @@
 			TabooSearchMenuItem.Size = new Size( 196, 22 );
 			TabooSearchMenuItem.Text = "Tabu Search";
 			TabooSearchMenuItem.Click +=  TabooSearchMenuItem_Click ;
+			// 
+			// RandomSearchMenuItem
+			// 
+			RandomSearchMenuItem.Name = "RandomSearchMenuItem";
+			RandomSearchMenuItem.Size = new Size( 196, 22 );
+			RandomSearchMenuItem.Text = "Random Search";
+			RandomSearchMenuItem.Click +=  RandomSearchMenuItem_Click ;
 			// 
 			// antsToolStripMenuItem
 			// 
@@ -372,13 +370,9 @@
 			// 
 			// mapControl
 			// 
-			mapControl.Color = Color.Blue;
 			mapControl.Dock = DockStyle.Fill;
 			mapControl.Location = new Point( 3, 3 );
-			mapControl.Map = null;
 			mapControl.Name = "mapControl";
-			mapControl.Optimal = null;
-			mapControl.Path = null;
 			mapControl.Size = new Size( 1005, 876 );
 			mapControl.TabIndex = 0;
 			// 
@@ -424,13 +418,6 @@
 			buttonStop.UseVisualStyleBackColor = true;
 			buttonStop.Click +=  buttonStop_Click ;
 			// 
-			// RandomSearchMenuItem
-			// 
-			RandomSearchMenuItem.Name = "RandomSearchMenuItem";
-			RandomSearchMenuItem.Size = new Size( 196, 22 );
-			RandomSearchMenuItem.Text = "Random Search";
-			RandomSearchMenuItem.Click +=  RandomSearchMenuItem_Click ;
-			// 
 			// Form1
 			// 
 			AutoScaleDimensions = new SizeF( 7F, 15F );
@@ -466,13 +453,11 @@
 		
 		private ToolStripMenuItem computeToolStripMenuItem;
 		private ToolStripMenuItem NearestNeighborMenuItem;
-		private ToolStripMenuItem dFSToolStripMenuItem;
 		private ToolStripMenuItem EvolutionMenuItem;		
 		private ToolStripStatusLabel StatusLabel;
 		private ToolStripMenuItem GetOptimalMenuItem;
 		private ToolStripMenuItem AnnealingMenuItem;
 		private MapControl mapControl;
-		private ToolStripMenuItem kNearestToolStripMenuItem;
 		private ToolStripMenuItem randomMenuItem;
 		private ToolStripMenuItem NearestNeighbourMenuItem;
 		private ToolStripMenuItem ShortestEdgeMenuItem;
@@ -503,5 +488,6 @@
 		private Button buttonPause;
 		private Button buttonStop;
 		private ToolStripMenuItem RandomSearchMenuItem;
+		private ToolStripMenuItem kNearestMenuItem;
 	}
 }

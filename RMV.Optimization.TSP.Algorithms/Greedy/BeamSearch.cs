@@ -15,17 +15,29 @@ public class BeamSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 	{
 		this.settings = ConfigManager.GetSection<BeamSettings>( "beam" );
 		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );
+		//base.settings = ConfigManager.GetSection<IlsSettings>( "beam" ) ?? throw new ArgumentNullException( nameof( settings ) );
 	}
 
-
+	/// <summary>
+	/// Initializes the algorithm and generates an initial solution for TSP problem using a beam search starting from city 0.
+	/// </summary>
+	/// <returns>A <see cref="TspResult"/> representing the initial solution, or <see langword="null"/> if no solution is found.</returns>
 	protected override TspResult? Initialize()
-	{
-		// Use city 0 beam search as the initial solution
+	{		
 		this.nextStart = 1;
 
-		return RunBeamSearch( 0 );
+		return RunBeamSearch( 0 ); // Use city 0 beam search as the initial solution
 	}
 
+	/// <summary>
+	/// Performs a single epoch and returns the better of the current result and the provided best
+	/// result.
+	/// </summary>
+	/// <remarks>This method advances the internal search starting point for each epoch. If the internal starting
+	/// index exceeds the number of cities, it wraps around to zero. The method compares the new result to the provided
+	/// best result using the tour cost, with a margin applied, and returns the superior result.</remarks>
+	/// <param name="best">The current best result to compare against. Must not be null.</param>
+	/// <returns>A TspResult instance representing the better of the newly computed result and the provided best result.</returns>
 	protected override TspResult RunEpoch( TspResult best )
 	{
 		if( this.nextStart >= base.Cities ) this.nextStart = 0;

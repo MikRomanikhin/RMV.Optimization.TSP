@@ -28,19 +28,10 @@ public class Ant : ICloneable
 	public Ant( double tour, List<int> path )
 	{
 		this.ID = -999;
+		this.Cities = path.Count;
 		this.Tour = tour;
 		this.Path = path;
-	}
-
-	/// <summary>
-	/// Initialize best ant
-	/// </summary>
-	//public Ant()
-	//{
-	//	this.ID = -999;
-	//	this.Tour = int.MaxValue;
-	//	this.Path = [];
-	//}
+	}	
 
 	#endregion
 

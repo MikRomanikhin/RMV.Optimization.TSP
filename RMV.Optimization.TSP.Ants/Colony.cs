@@ -61,10 +61,10 @@ public class Colony : List<Ant>
 	{
 		this.Current = this.MinBy( a => a.Tour );
 
-		if( this.Best == null || this.Current.Tour + MARGIN < this.Best.Tour ) this.Best = this.Current.Clone() as Ant;		
+		if( this.Best == null || this.Current.Tour + MARGIN < this.Best.Tour ) this.Best = this.Current.Clone() as Ant;
 
-		return new TspResult( this.Current.Tour, this.Current.Path );
-	}	
+		return new TspResult( this.Current.Tour, [ .. this.Current.Path ] );
+	}
 
 	const double MARGIN = 0.0001;
 
