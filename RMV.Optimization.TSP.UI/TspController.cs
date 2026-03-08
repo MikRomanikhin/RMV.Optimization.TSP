@@ -6,14 +6,14 @@ namespace RMV.Optimization.TSP.UI;
 /// <summary>
 /// Controller class for managing TSP algorithms and interactions with UI 
 /// </summary>
-class TspController( Form1 form )
+class TspController( TspUI form )
 {	
 	public TspMap Map { get; set; }
 	//TspConfigurationBase settings;
 
 	TspAlgorithmBase Algorithm { get; set; }
 
-	readonly Form1 form = form ?? throw new ArgumentNullException( nameof( form ) );
+	readonly TspUI form = form ?? throw new ArgumentNullException( nameof( form ) );
 
 	/// <summary>
 	/// Creates and configures a new instance of a TSP algorithm based on the specified algorithm type.

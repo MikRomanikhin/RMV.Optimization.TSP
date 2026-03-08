@@ -1,6 +1,6 @@
 ﻿namespace RMV.Optimization.TSP.UI
 {
-	partial class Form1
+	partial class TspUI
 	{
 		/// <summary>
 		///  Required designer variable.

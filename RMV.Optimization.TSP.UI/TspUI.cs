@@ -3,7 +3,7 @@ using RMV.Optimization.TSP.Domain;
 
 namespace RMV.Optimization.TSP.UI;
 
-public partial class Form1 : Form
+public partial class TspUI : Form
 {
 	#region Initialize --------------------------------------------------------
 
@@ -15,7 +15,7 @@ public partial class Form1 : Form
 
 	TspMap map;
 
-	public Form1()
+	public TspUI()
 	{
 		InitializeComponent();
 
@@ -79,6 +79,16 @@ public partial class Form1 : Form
 
 	#region GenerateNodes ------------------------------------------------------
 
+	/// <summary>
+	/// Generates 2D array of node coordinates from the provided CSV data and adds the corresponding nodes to the map.
+	/// </summary>
+	/// <remarks>
+	/// Method expects the CSV data to be formatted such that each city's node information appears in
+	/// consecutive entries, starting at a fixed offset. The generated coordinates are scaled based on the map's dimensions.
+	/// </remarks>
+	/// <param name="csv">An array of strings containing CSV-formatted data, where each relevant entry represents a city's node information.
+	/// The array must contain at least as many entries as required to describe all cities.</param>
+	/// <returns>A 2D array where each row contains the X and Y coordinates of a node, scaled to the map's display area.</returns>
 	int[,] GenerateNodes( string[] csv )
 	{
 		int cities = this.map.Cities;
@@ -147,47 +157,6 @@ public partial class Form1 : Form
 	/// </summary>		
 	async void PilotMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.Pilot );
 
-	/// <summary>
-	/// K-Nearest Neighbor
-	/// </summary>	
-	//async void KNearestMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.KNearest );
-
-
-
-	#endregion
-
-
-	#region Branch and Bound ---------------------------------------------------
-
-	/// <summary>
-	/// B & B run
-	/// </summary>		
-	void DfsMenuItem_Click( object sender, EventArgs e )
-	{
-		//mapControl.Color = Color.Blue;
-
-		//bbWorker.RunWorkerAsync();
-	}
-
-	///// <summary>
-	///// Branch and bound workflow
-	///// </summary>	
-	//void OnDoWorkBb( object sender, DoWorkEventArgs DoWorkArgs )
-	//{
-	//	TspMap.OnDraw += HandleDrawEvent;
-
-	//	var timer = new Stopwatch();	
-	//	timer.Start();
-
-	//	(double tour, int[] path) = this.map.GetBranchAndBound();
-
-	//	timer.Stop();
-
-	//	mapControl.Path = Array.ConvertAll( path, new Converter<int, ushort>( IntToUshort ) );
-
-	//	UpdateStatusLabel( $"{map.Name} Tour={( int )tour} Time={timer.Elapsed.Minutes}:{timer.Elapsed.Seconds:d2}" );
-	//}
-
 	#endregion
 
 
@@ -196,10 +165,7 @@ public partial class Form1 : Form
 	/// <summary>
 	/// Simulated Annealing
 	/// </summary>	
-	async void Annealing_Click( object sender, EventArgs e )
-	{
-		await Execute( TspAlgorithm.Annealing );
-	}
+	async void Annealing_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.Annealing );
 
 	#endregion
 
@@ -209,66 +175,37 @@ public partial class Form1 : Form
 	/// <summary>
 	/// Random path
 	/// </summary>		
-	async void RandomSearchMenuItem_Click( object sender, EventArgs e )
-	{
-		await Execute( TspAlgorithm.Random );
-	}
+	async void RandomSearchMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.Random );
 
 	/// <summary>
 	/// Iterated Local Search
 	/// </summary>	
-	async void IteratedLocalSearch_Click( object sender, EventArgs e )
-	{
-		await Execute( TspAlgorithm.IteratedLocal );
-	}
+	async void IteratedLocalSearch_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.IteratedLocal );
 
 	/// <summary>
 	/// Guided Local Search
 	/// </summary>	
-	async void GuidedLocalSearch_Click( object sender, EventArgs e )
-	{
-		await Execute( TspAlgorithm.GuidedLocal );
-	}
+	async void GuidedLocalSearch_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.GuidedLocal );
 
 	/// <summary>
 	/// Variable Neighborhood Search
 	/// </summary>	
-	async void VariableNeighborhoodSearch_Click( object sender, EventArgs e )
-	{
-		await Execute( TspAlgorithm.VariableNeiborhood );
-	}
+	async void VariableNeighborhoodSearch_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.VariableNeiborhood );
 
 	/// <summary>
 	/// Randomized Adaptive Search
 	/// </summary>	
-	async void RandomizedAdaptiveSearch_Click( object sender, EventArgs e )
-	{
-		await Execute( TspAlgorithm.GRASP );
-	}
+	async void RandomizedAdaptiveSearch_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.GRASP );
 
 	/// <summary>
 	/// Scatter Search
 	/// </summary>	
-	async void ScatterSearchMenuItem_Click( object sender, EventArgs e )
-	{
-		await Execute( TspAlgorithm.Scatter );
-	}
+	async void ScatterSearchMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.Scatter );
 
 	/// <summary>
 	/// Taboo Search
 	/// </summary>	
-	async void TabooSearchMenuItem_Click( object sender, EventArgs e )
-	{
-		await Execute( TspAlgorithm.Taboo );
-	}
-
-	/// <summary>
-	/// Reactive Tabu Search
-	/// </summary>	
-	//async void ReactiveTabuSearchMenuItem_Click( object sender, EventArgs e )
-	//{
-	//	await Execute( TspAlgorithm.Reactive );
-	//}
+	async void TabooSearchMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.Taboo );		
 
 	#endregion
 
@@ -280,18 +217,15 @@ public partial class Form1 : Form
 	/// </summary>	
 	async void AntSystemMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.AntSystem );
 
-
 	/// <summary>
 	/// Ant Colony System
 	/// </summary>	
 	async void AntColonySystemMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.AntColonySystem );
 
-
 	/// <summary>
 	/// Max-Min Ant System
 	/// </summary>	
 	async void MinMaxAntMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.MaxMinAnt );
-
 
 	/// <summary>
 	/// Particle Swarm Optimization
