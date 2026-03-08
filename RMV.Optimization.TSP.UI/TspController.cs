@@ -8,9 +8,14 @@ namespace RMV.Optimization.TSP.UI;
 /// </summary>
 class TspController( TspUI form )
 {	
+	/// <summary>
+	/// TSP map
+	/// </summary>
 	public TspMap Map { get; set; }
-	//TspConfigurationBase settings;
 
+	/// <summary>
+	/// TSP algorithm instance currently in use.
+	/// </summary>
 	TspAlgorithmBase Algorithm { get; set; }
 
 	readonly TspUI form = form ?? throw new ArgumentNullException( nameof( form ) );
@@ -80,7 +85,7 @@ class TspController( TspUI form )
 
 		try
 		{
-			await ( ( ITspAsync )this.Algorithm ).RunAsync( token );
+			await this.Algorithm.RunAsync( token );
 		}
 		catch( OperationCanceledException )
 		{

@@ -8,7 +8,7 @@ namespace RMV.Optimization.TSP.Algorithms;
 /// <summary>
 /// Parent class for TSP algorithms
 /// </summary>
-public abstract class TspAlgorithmBase : ITspAsync
+public abstract class TspAlgorithmBase 
 {
 
 	#region Constructor --------------------------------------------------------
@@ -85,7 +85,7 @@ public abstract class TspAlgorithmBase : ITspAsync
 
 			if( best != null ) Draw( best.Tour, ++count, best.Path );
 
-		}, token ?? CancellationToken.None ).ConfigureAwait( false ); //Provide a default CancellationToken if null and ensure proper async behavior
+		}, token ?? CancellationToken.None ).ConfigureAwait( false ); // ensure proper async behavior
 
 		this.timer.Stop();
 
@@ -141,7 +141,8 @@ public abstract class TspAlgorithmBase : ITspAsync
 
 	/// <summary>
 	/// Randomly swaps two cities in the path to create a new path
-	/// </summary>	
+	/// </summary>
+	/// <param name="path">The path to modify</param>
 	protected static List<int> RandomSwap( IList<int> path )
 	{
 		var copy = new List<int>( path );
@@ -156,6 +157,11 @@ public abstract class TspAlgorithmBase : ITspAsync
 		return copy;
 	}
 
+	/// <summary>
+	/// Randomly swaps two cities in the TSP result to create a new result
+	/// </summary>
+	/// <param name="result">The TSP result to modify</param>
+	/// <returns>A new TSP result with two cities swapped</returns>
 	protected TspResult RandomSwap( TspResult result )
 	{
 		var copy = new List<int>( result.Path );
@@ -1216,7 +1222,7 @@ public abstract class TspAlgorithmBase : ITspAsync
 	/// Nearest Neighbour algorithm for starting node
 	/// </summary>
 	/// <param name="start">starting node</param>
-	protected TspResult GetNearest( int start )
+	TspResult GetNearest( int start )
 	{
 		List<int> path = [ start ];
 
@@ -1244,6 +1250,15 @@ public abstract class TspAlgorithmBase : ITspAsync
 
 	#region Selection ----------------------------------------------------------
 
+	/// <summary>
+	/// Selects a single individual from the population using roulette wheel (fitness-proportionate) selection.
+	/// </summary>
+	/// <remarks>
+	/// Roulette wheel selection increases the likelihood of selecting individuals with higher Fitness values.</remarks>
+	/// <param name="population">
+	/// The list of individuals to select from. Each individual's selection probability is proportional to its Fitness value.
+	/// </param>
+	/// <returns>TspResult representing the selected individual from the population.</returns>
 	protected static TspResult RouletteWheelSelection( List<TspResult> population )
 	{
 		double totalFitness = population.Sum( ind => ind.Fitness );
@@ -1262,6 +1277,17 @@ public abstract class TspAlgorithmBase : ITspAsync
 		return population.First(); // Fallback
 	}
 
+	/// <summary>
+	/// Selects a single TspResult from the given population using tournament selection with the specified tournament size.
+	/// </summary>
+	/// <remarks>
+	/// This is a common method in genetic algorithms for selecting individuals based on fitness. The method randomly selects 
+	/// a subset of the population and returns the individual with the lowest fitness value. The selection is stochastic and may
+	/// select the same individual multiple times if the tournament size is less than the population size.
+	/// </remarks>
+	/// <param name="population">The list of TspResult instances representing the current population from which to select.</param>
+	/// <param name="tournamentSize">The number of individuals to randomly select for the tournament.</param>
+	/// <returns>TspResult with the best (minimum) fitness value among the randomly selected tournament participants.</returns>
 	protected static TspResult TournamentSelection( List<TspResult> population, int tournamentSize )
 	{
 		var tournament = new List<TspResult>();
@@ -1274,6 +1300,17 @@ public abstract class TspAlgorithmBase : ITspAsync
 		return tournament.MinBy( i => i.Fitness );
 	}
 
+	/// <summary>
+	/// Selects a single individual from the given population using rank-based selection, where individuals
+	/// with higher fitness ranks have a greater probability of being chosen.
+	/// </summary>
+	/// <remarks>
+	/// Assigns selection probabilities according to the relative rank of each individual's fitness, rather than the raw
+	/// fitness value. This helps maintain diversity and prevents highly fit individuals from dominating the selection process. 
+	/// The method assumes that lower fitness values represent better solutions.
+	/// </remarks>
+	/// <param name="population">The list of individuals representing the current population.</param>
+	/// <returns>A single individual selected from the population based on rank-based probability.</returns>
 	protected static TspResult RankBasedSelection( List<TspResult> population )
 	{
 		var rankedPopulation = population.OrderBy( ind => ind.Fitness ).Select( ( ind, index ) => new { Individual = ind, Rank = index + 1 } ).ToList();
@@ -1300,8 +1337,11 @@ public abstract class TspAlgorithmBase : ITspAsync
 	#region Crossover ----------------------------------------------------------
 
 	/// <summary>
-	/// Ordered crossover for TSP
-	/// </summary>	
+	/// Performs ordered crossover (OX) between two parent TspResult instances to produce a child TspResult.
+	/// </summary>
+	/// <param name="parent1">The first parent TspResult.</param>
+	/// <param name="parent2">The second parent TspResult.</param>
+	/// <returns>TspResult representing the child produced from the crossover.</returns>
 	protected TspResult Crossover( TspResult parent1, TspResult parent2 )
 	{
 		int length = parent1.Path.Count;

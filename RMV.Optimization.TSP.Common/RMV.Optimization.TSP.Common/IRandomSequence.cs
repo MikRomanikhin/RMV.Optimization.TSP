@@ -6,19 +6,11 @@
 public interface IRandomSequence
 {
 	/// <summary>
-	/// Gets an integer array with values between minimum value (inclusive) and maximum value (exclusive).
-	/// </summary>
-	/// <returns>The integer array.</returns>
-	/// <param name="length">The array length</param>
-	/// <param name="min">Minimum value (inclusive).</param>
-	/// <param name="max">Maximum value (exclusive).</param>
-	//public static int[] GetInts( int length, int min, int max ) =>
-	//	Enumerable.Range( min, max - min ).OrderBy( x => Random.Shared.Next() ).Take( length ).ToArray();
-
-
-	/// <summary>
 	/// Generates an ordered list of random unique integers within a specified range
-	/// </summary>		
+	/// </summary>
+	/// <param name="count">Number of unique integers to generate.</param>
+	/// <param name="min">Minimum value of the range (inclusive).</param>
+	/// <param name="max">Maximum value of the range (inclusive).</param>
 	public static List<int> GetUniqueInts( int count, int min, int max )
 	{
 		if( count > ( max - min + 1 ) ) throw new ArgumentException( "Length exceeds the range" );
@@ -28,7 +20,9 @@ public interface IRandomSequence
 
 	/// <summary>
 	/// Generates a pair of unique integers within a specified range
-	/// </summary>	
+	/// </summary>
+	/// <param name="min">Minimum value of the range (inclusive).</param>
+	/// <param name="max">Maximum value of the range (inclusive).</param>
 	public static (int,int) GetPairInts( int min, int max )
 	{
 		if( max < min ) ( min, max) = (max, min);
@@ -39,10 +33,5 @@ public interface IRandomSequence
 
 		return (result1, result2);
 	}
-
-	/// <summary>
-	/// Generates a list of unique ordered integers within a specified range
-	/// </summary>	
-	//public static List<int> GetUniqueOrderedInts( int length, int min, int max ) =>
-	//	GetUniqueInts( length, min, max ).OrderBy( x => x ).ToList();
+	
 }

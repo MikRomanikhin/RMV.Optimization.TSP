@@ -13,7 +13,7 @@ public class MapControl : Panel
    /// <summary>
    /// Required designer variable.
    /// </summary>
-   Container components;// = null;
+   Container components;
 
    // pens and brushes
    readonly Pen blackPen = new( Color.Black );
@@ -23,46 +23,15 @@ public class MapControl : Panel
 
    #region Properties -------------------------------------------------
 
-   public int MaxX => MAX_X;
-	public int MaxY => MAX_Y;
-
-   /// <summary>
-   /// X range
-   /// </summary>
-   //public IntRange RangeX
-   //{
-   //   get => rangeX;
-   //   set
-   //   {
-   //      if( value != null )
-   //      {
-   //         rangeX = value;
-   //         Invalidate();
-   //      }
-   //   }
-   //}
-   IntRange rangeX = new( 0, MAX_X );
-
-   /// <summary>
-   /// Y range
-   /// </summary>
-   //public IntRange RangeY
-   //{
-   //   get => rangeY;
-   //   set
-   //   {
-   //      if( value != null )
-   //      {
-   //         rangeY = value;
-   //         Invalidate();
-   //      }
-   //   }
-   //}
-   IntRange rangeY = new( 0, MAX_Y );
+   public int MaxX => MAX_X;  // X maximum value
+	public int MaxY => MAX_Y;  // Y maximum value
+	 
+	IntRange rangeX = new( 0, MAX_X ); // X range	  
+	IntRange rangeY = new( 0, MAX_Y ); // Y range
 
 
 	/// <summary>
-	/// Map
+	/// TSP Map
 	/// </summary>
 	[DesignerSerializationVisibility( DesignerSerializationVisibility.Hidden )]
 	public int[,] Map
@@ -77,7 +46,7 @@ public class MapControl : Panel
    int[,] map;
 
 	/// <summary>
-	/// Path
+	/// TSP Path
 	/// </summary>
 	[DesignerSerializationVisibility( DesignerSerializationVisibility.Hidden )]
 	public ushort[] Path
@@ -91,6 +60,9 @@ public class MapControl : Panel
    }
    ushort[] path;
 
+   /// <summary>
+   /// Optimal Path
+   /// </summary>
 	[DesignerSerializationVisibility( DesignerSerializationVisibility.Hidden )]
 	public ushort[] Optimal
    {
@@ -119,10 +91,7 @@ public class MapControl : Panel
       InitializeComponent();
 
       // Update control style
-      SetStyle( ControlStyles.AllPaintingInWmPaint | ControlStyles.ResizeRedraw | ControlStyles.DoubleBuffer | ControlStyles.UserPaint, true );
-
-      //base.BackColor = Color.White;
-      //base.BorderStyle = BorderStyle.Fixed3D;
+      SetStyle( ControlStyles.AllPaintingInWmPaint | ControlStyles.ResizeRedraw | ControlStyles.DoubleBuffer | ControlStyles.UserPaint, true );     
    }
 
    /// <summary>
@@ -132,9 +101,7 @@ public class MapControl : Panel
    {
       if( disposing )
       {
-         components?.Dispose();
-
-         // free graphics resources
+         components?.Dispose();         
          blackPen.Dispose();
          whiteBrush.Dispose();
       }
@@ -146,6 +113,7 @@ public class MapControl : Panel
 
 
    #region Component Designer generated code
+
    /// <summary>
    /// Required method for Designer support - do not modify 
    /// the contents of this method with the code editor.
@@ -154,14 +122,9 @@ public class MapControl : Panel
    {
       components = new Container();
    }
-	#endregion
 
-	// Paint the control
-	//protected override async void OnPaint( PaintEventArgs e )
-	//{
-	//	await PaintAsync( e );
-	//	//await Task.Run( () => PaintAsync( e ) );
-	//}
+	#endregion
+	
 
 	#region OnPaint ------------------------------------------------------------
 
