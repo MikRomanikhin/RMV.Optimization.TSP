@@ -42,7 +42,6 @@
 			GreedyCombinedMenuItem = new ToolStripMenuItem();
 			beamSearchMenuItem = new ToolStripMenuItem();
 			PilotMenuItem = new ToolStripMenuItem();
-			kNearestMenuItem = new ToolStripMenuItem();
 			AnnealingMenuItem = new ToolStripMenuItem();
 			EvolutionMenuItem = new ToolStripMenuItem();
 			GeneticAlgorithmMenuItem = new ToolStripMenuItem();
@@ -64,7 +63,6 @@
 			MinMaxAntMenuItem = new ToolStripMenuItem();
 			PsoMenuItem = new ToolStripMenuItem();
 			LearningMenuItem = new ToolStripMenuItem();
-			QLearningMenuItem = new ToolStripMenuItem();
 			statusStrip = new StatusStrip();
 			StatusLabel = new ToolStripStatusLabel();
 			tableLayoutPanel1 = new TableLayoutPanel();
@@ -136,7 +134,7 @@
 			// 
 			// NearestNeighborMenuItem
 			// 
-			NearestNeighborMenuItem.DropDownItems.AddRange( new ToolStripItem[] { NearestNeighbourMenuItem, ShortestEdgeMenuItem, GreedyCombinedMenuItem, beamSearchMenuItem, PilotMenuItem, kNearestMenuItem } );
+			NearestNeighborMenuItem.DropDownItems.AddRange( new ToolStripItem[] { NearestNeighbourMenuItem, ShortestEdgeMenuItem, GreedyCombinedMenuItem, beamSearchMenuItem, PilotMenuItem } );
 			NearestNeighborMenuItem.Name = "NearestNeighborMenuItem";
 			NearestNeighborMenuItem.Size = new Size( 180, 22 );
 			NearestNeighborMenuItem.Text = "Greedy";
@@ -176,11 +174,6 @@
 			PilotMenuItem.Size = new Size( 167, 22 );
 			PilotMenuItem.Text = "Pilot Method";
 			PilotMenuItem.Click +=  PilotMenuItem_Click ;
-			// 
-			// kNearestMenuItem
-			// 
-			kNearestMenuItem.Name = "kNearestMenuItem";
-			kNearestMenuItem.Size = new Size( 167, 22 );
 			// 
 			// AnnealingMenuItem
 			// 
@@ -263,7 +256,7 @@
 			// 
 			RandomizedAdaptiveMenuItem.Name = "RandomizedAdaptiveMenuItem";
 			RandomizedAdaptiveMenuItem.Size = new Size( 196, 22 );
-			RandomizedAdaptiveMenuItem.Text = "Randomized Adaptive";
+			RandomizedAdaptiveMenuItem.Text = "GRASP";
 			RandomizedAdaptiveMenuItem.Click +=  RandomizedAdaptiveSearch_Click ;
 			// 
 			// ScatterSearchMenuItem
@@ -324,17 +317,10 @@
 			// 
 			// LearningMenuItem
 			// 
-			LearningMenuItem.DropDownItems.AddRange( new ToolStripItem[] { QLearningMenuItem } );
 			LearningMenuItem.Name = "LearningMenuItem";
 			LearningMenuItem.Size = new Size( 180, 22 );
-			LearningMenuItem.Text = "Learning";
-			// 
-			// QLearningMenuItem
-			// 
-			QLearningMenuItem.Name = "QLearningMenuItem";
-			QLearningMenuItem.Size = new Size( 134, 22 );
-			QLearningMenuItem.Text = "Q-Learning";
-			QLearningMenuItem.Click +=  QLearningMenuItem_Click ;
+			LearningMenuItem.Text = "Q-Learning";
+			LearningMenuItem.Click +=  LearningMenuItem_Click ;
 			// 
 			// statusStrip
 			// 
@@ -483,11 +469,9 @@
 		private ToolStripMenuItem EvolutionaryProgrammingMenuItem;
 		private ToolStripMenuItem LearningClassifierMenuItem;
 		private ToolStripMenuItem LearningMenuItem;
-		private ToolStripMenuItem QLearningMenuItem;
 		private TableLayoutPanel tableLayoutPanel2;
 		private Button buttonPause;
 		private Button buttonStop;
 		private ToolStripMenuItem RandomSearchMenuItem;
-		private ToolStripMenuItem kNearestMenuItem;
 	}
 }

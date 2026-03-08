@@ -73,7 +73,13 @@ public class PilotSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 		return new TspResult( tour, path );
 	}
 
-
+	/// <summary>
+	/// Selects the next city to visit based on the simulated tour cost.
+	/// </summary>
+	/// <param name="start">The starting city of the tour.</param>
+	/// <param name="current">The current city in the tour.</param>
+	/// <param name="visited">An array indicating which cities have been visited.</param>
+	/// <returns>The index of the next city to visit.</returns>
 	int SelectNextCity( int start, int current, bool[] visited ) =>
 		Enumerable.Range( 0, base.Cities ).Where( c => !visited[ c ] ).MinBy( c => SimulateTour( start, current, c, visited ) );
 

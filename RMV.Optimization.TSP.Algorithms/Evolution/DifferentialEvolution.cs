@@ -1,5 +1,4 @@
 ﻿using RMV.Optimization.TSP.Common;
-
 using RMV.Optimization.TSP.Domain;
 
 namespace RMV.Optimization.TSP.Algorithms;
@@ -22,135 +21,201 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 	{
 		population = base.InitializePopulation( this.settings.Size );
 
+		// Seed one top-tier solution so DE has something to pull towards
+		population[ 0 ] = base.BuildNearestTour();
+
 		return population.MinBy( r => r.Tour )!.Clone();
 	}
 
+
 	protected override TspResult RunEpoch( TspResult best )
 	{
-		List<TspResult> newPopulation = [];
+		List<TspResult> newPopulation = new( this.settings.Size );
 
-		foreach( var target in population )
-		{
-			var mutant = Mutate( population, target );
+		// Process target mutations in parallel to speed up large populations
+		object lockObj = new();
 
-			var trial = base.Crossover( target, mutant );
+		Parallel.ForEach( population, target => 
+		{			
+			var mutant = Mutate( population, target );  // Mutate to create trial vector
 
-			Update( newPopulation, trial < target ? trial : target );   											
-		}
+			// DE crossover (binomial)
+			var trialPath = CrossoverDE( target.Path, mutant.Path );
+			var trial = TspResult.Build( base.map, trialPath );
+						
+			trial = ParallelLocalSearch( trial.Path ); // Local search the trial to smooth combinatorial edges
 
-		population = [ .. newPopulation.OrderBy( p => p.Tour ) ];
-
-		var result = population.First(); // best solution in the current iteration
-
-		return Parallel2OptSearch( result.Path );
-	}
-	
-
-	/// <summary>
-	/// Update population and prevent duplicates
-	/// </summary>	
-	void Update( List<TspResult> population, TspResult current )
-	{
-		if( !population.Contains( current ) )		
-			population.Add( current );					
-		else 
-			population.Add( base.InitializeTour() ); //add a new random tour to the population
-	}
-
-	/// <summary>
-	/// Mutates the target tour using three random donor tours from the population
-	/// </summary>	
-	TspResult Mutate( List<TspResult> population, TspResult target )
-	{
-		int size = population.Count;
-
-		var points = IRandomSequence.GetUniqueInts( 3, 0, size ); // Get three unique indices
-
-		var donor1 = population[ points[ 0 ] ];
-		var donor2 = population[ points[ 1 ] ];
-		var donor3 = population[ points[ 2 ] ];
-
-		return Mutate( target.Path, donor1.Path, donor2.Path, donor3.Path );
-	}
-
-	/// <summary>
-	/// Mutates the target tour using three donor tours
-	/// </summary>	
-	TspResult Mutate( IList<int> target, IList<int> donor1, IList<int> donor2, IList<int> donor3 )
-	{								
-		var mutated = new List<int>( target ); // Mutation: donor1 + F * (donor2 - donor3)
-
-		for( int i = 0; i < target.Count; i++ )
-		{
-			if( Random.Shared.NextDouble() < settings.Factor )
-				mutated[ i ] = donor1[ i ] + ( int )settings.Factor * ( donor2[ i ] - donor3[ i ] );		
-		}
-		
-		return RepairTour( mutated, target ); // Repair step to ensure valid TSP tour (no duplicates)
-	}
-
-	/// <summary>
-	/// Repair the mutated tour to ensure it's a valid permutation
-	/// </summary>	
-	TspResult RepairTour( List<int> mutated, IList<int> current )
-	{
-		var missing = current.Except( mutated ).ToList();
-
-		var duplicates = mutated.GroupBy( x => x ).Where( g => g.Count() > 1 ).Select( g => g.Key ).ToList();
-
-		int index = 0;
-
-		for( int i = 0; i < mutated.Count; i++ )
-		{
-			int city = mutated[ i ];
-
-			if( duplicates.Contains( city ) )
+			lock( lockObj )
 			{
-				mutated[ i ] = missing[ index++ ];
+				Update( newPopulation, trial < target ? trial : target );
+			}
+		} );
+				
+		population = CleanDuplicates( newPopulation ); // Clean up duplicates if the population starts to converge/stagnate
 
-				duplicates.Remove( city );
+		return population.First(); // best solution in the current iteration
+	}
+
+
+	/// <summary>
+	/// Generates a mutant vector using three random donor tours In discrete TSP, a widely accepted
+	/// approximation of X1 + F(X2 - X3) is combinatorial path relinking or ordered insertion.
+	/// </summary>	
+	TspResult Mutate( List<TspResult> pop, TspResult target )
+	{
+		int size = pop.Count;
+
+		// Get three unique indices, distinct from target if possible
+		var points = IRandomSequence.GetUniqueInts( 3, 0, size - 1 );
+
+		var donor1 = pop[ points[ 0 ] ];
+		var donor2 = pop[ points[ 1 ] ];
+		var donor3 = pop[ points[ 2 ] ];
+
+		// Discrete mutant via greedy edge/position assembly
+		var mutantPath = DiscreteMutation( donor1.Path, donor2.Path, donor3.Path );
+
+		return TspResult.Build( base.map, mutantPath );
+	}
+
+	/// <summary>
+	/// Approximates A + F * (B - C) for permutations by blending donor1 with features common to donor2 and donor3.
+	/// </summary>
+	List<int> DiscreteMutation( IList<int> donor1, IList<int> donor2, IList<int> donor3 )
+	{
+		int length = donor1.Count;
+		var mutant = new int[ length ];
+		var added = new HashSet<int>();
+
+		for( int i = 0; i < length; i++ )
+		{
+			// F controls whether we take from donor1 (Base) or inject features from (B-C)
+			if( Random.Shared.NextDouble() < settings.Factor )
+			{
+				// Attempt to pull a city from B or C that isn't already used
+				int candidate = donor2[ i ];
+				if( !added.Contains( candidate ) )
+				{
+					mutant[ i ] = candidate;
+					added.Add( candidate );
+					continue;
+				}
+
+				candidate = donor3[ i ];
+				if( !added.Contains( candidate ) )
+				{
+					mutant[ i ] = candidate;
+					added.Add( candidate );
+					continue;
+				}
+			}
+
+			// Base vector donor1 fallback
+			if( !added.Contains( donor1[ i ] ) )
+			{
+				mutant[ i ] = donor1[ i ];
+				added.Add( donor1[ i ] );
+			}
+			else
+			{				
+				mutant[ i ] = -1; // Mark as -1 to be repaired
 			}
 		}
 
-		return TspResult.Build( base.map, mutated );
+		// Repair missing cities (filling holes)
+		var missing = donor1.Where( c => !added.Contains( c ) ).ToList();
+
+		int missingIdx = 0;
+
+		for( int i = 0; i < length; i++ )
+		{
+			if( mutant[ i ] == -1 )	mutant[ i ] = missing[ missingIdx++ ];			
+		}
+
+		return [ .. mutant ];
 	}
 
-	#region obsolete
 	/// <summary>
-	/// Ordered crossover between two parents
+	/// Binomial Crossover: mixes target with mutant based on Crossover Rate (CR) ensuring the result is valid.
+	/// </summary>
+	List<int> CrossoverDE( IList<int> target, IList<int> mutant )
+	{
+		int length = target.Count;
+		var trial = new int[ length ];
+		var used = new HashSet<int>();
+
+		// Guarantee at least one element comes from the mutant
+		int fixedIndex = Random.Shared.Next( length );
+
+		for( int i = 0; i < length; i++ )
+		{
+			if( i == fixedIndex || Random.Shared.NextDouble() < settings.Rate )
+			{
+				if( !used.Contains( mutant[ i ] ) )
+				{
+					trial[ i ] = mutant[ i ];
+					used.Add( mutant[ i ] );
+				}
+				else
+				{
+					trial[ i ] = -1;
+				}
+			}
+			else
+			{
+				if( !used.Contains( target[ i ] ) )
+				{
+					trial[ i ] = target[ i ];
+					used.Add( target[ i ] );
+				}
+				else
+				{
+					trial[ i ] = -1;
+				}
+			}
+		}
+
+		// Repair
+		var missing = target.Where( c => !used.Contains( c ) ).ToList();
+		int missingIdx = 0;
+
+		for( int i = 0; i < length; i++ )
+		{
+			if( trial[ i ] == -1 )
+			{
+				trial[ i ] = missing[ missingIdx++ ];
+			}
+		}
+
+		return [ .. trial ];
+	}
+
+	/// <summary>
+	/// Update population and prevent exact duplicates from dominating the pool
 	/// </summary>	
-	//TspResult Crossover( IList<int> parent1, IList<int> parent2 )
-	//{
-	//	int length = parent1.Count;
+	void Update( List<TspResult> nextGen, TspResult current )
+	{
+		if( !nextGen.Exists( p => Math.Abs( p.Tour - current.Tour ) < MARGIN ) )
+			nextGen.Add( current );
+		else
+			nextGen.Add( base.InitializeTour() ); // inject diversity 
+	}
 
-	//	List<int> child = Enumerable.Repeat( -1, length ).ToList();
 
-	//	(int start, int end) = IRandomSequence.GetPairInts( 0, length ); // Get random crossover points
+	/// <summary>
+	/// Replace duplicates in the population by random tour
+	///</summary>
+	List<TspResult> CleanDuplicates( List<TspResult> population )
+	{
+		int count = population.Count;
 
-	//	// Select random crossover points
-	//	//int start = Random.Shared.Next( 0, length );
-	//	//int end = Random.Shared.Next( start, length );
+		var result = population.Distinct().OrderBy( c => c.Tour ).ToList();
 
-	//	for( int i = start; i <= end; i++ ) // Copy segment from parent1 to child
-	//	{
-	//		child[ i ] = parent1[ i ];
-	//	}
+		while( result.Count < count ) result.Add( this.map.BuildRandomTour() );
 
-	//	int index = 0;
+		return result;
+	}
 
-	//	for( int i = 0; i < length; i++ ) // Fill remaining positions from parent2
-	//	{
-	//		if( !child.Contains( parent2[ i ] ) )
-	//		{
-	//			while( child[ index ] != -1 ) index++;
-
-	//			child[ index ] = parent2[ i ];
-	//		}
-	//	}
-
-	//	return TspResult.Build( base.map, child );
-	//}
-	#endregion
 }
 
 /// <summary>

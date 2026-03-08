@@ -25,7 +25,7 @@ public class VarialbleNeiborhoodSearch( TspMap map ) : TspAlgorithmBase( map )
 		{
 			var shakenTour = Shake( best.Path, neighborhood );
 
-			var current = Local2OptSearch( shakenTour ); //LinKernighanSearch( shakenTour );				
+			var current = ParallelLocalSearch( shakenTour ); //ParallelLinKernighanSearch( shakenTour );				
 
 			if( current < dup )
 			{

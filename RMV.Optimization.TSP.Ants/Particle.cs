@@ -6,33 +6,21 @@ namespace RMV.Optimization.TSP.PSO;
 /// <summary>
 /// Particle for TSP PSO
 /// </summary>
-public class Particle
+public class Particle( int id, List<int> position, double cost )
 {
-	public IList<int> Position { get; set; } = [];
-	public IList<int> BestPosition { get; set; } = [];
-	public double Cost { get; set; } = double.MaxValue;
-	public double BestCost { get; set; } = double.MaxValue;
-	public List<(int, int)> Velocity { get; set; } = [];
-
-	int ID;
+	public int ID => id;
+	public List<int> Position { get; set; } = position;
+	public List<int> BestPosition { get; set; } = [ .. position ];
+	public double Cost { get; set; } = cost;
+	public double BestCost { get; set; } = cost;
+	public List<(int, int)> Velocity { get; set; } = [];	
 
 	static readonly PsoSettings settings = ConfigManager.GetSection<PsoSettings>( "pso" );
-
-
-	public Particle( int id, IList<int> position, double cost )
-	{
-		this.ID = id;
-		this.Position = position;
-		this.BestPosition = [ .. position ];
-		this.Cost = cost;
-		this.BestCost = cost;
-		this.Velocity = [];
-	}
 
 	/// <summary>
 	/// Replaces position and updates personal best if improved
 	/// </summary>
-	public void SetPosition( IList<int> position, double cost )
+	public void SetPosition( List<int> position, double cost )
 	{
 		this.Position = [ .. position ];
 		this.Cost = cost;
@@ -44,9 +32,22 @@ public class Particle
 		}
 	}
 
-	public void Update( IList<int> globalBest, TspMap map )
+	/// <summary>
+	/// Updates the particle's position and cost based on its velocity and the provided global best solution.
+	/// </summary>
+	/// <remarks>
+	/// If the particle's velocity becomes empty, indicating convergence, the particle is perturbed to maintain diversity 
+	/// in the swarm. This method updates the particle's best-known position and cost if an improved solution is found.
+	/// </remarks>
+	/// <param name="globalBest">
+	/// A list of city indices representing the current global best tour. Used to guide the particle's movement toward the best-known solution.
+	/// </param>
+	/// <param name="map">
+	/// The map containing the distance information for the traveling salesman problem. Used to evaluate the cost of the particle's current tour.
+	/// </param>
+	public void Update( List<int> globalBest, TspMap map )
 	{
-		this.Velocity = this.UpdateVelocity( globalBest );
+		this.Velocity = UpdateVelocity( globalBest );
 
 		// If velocity is empty, particle has converged — perturb to maintain diversity
 		if( this.Velocity.Count == 0 )
@@ -54,7 +55,7 @@ public class Particle
 			Perturb();
 		}
 
-		this.Position = this.ApplyVelocity( this.Velocity );
+		this.Position = ApplyVelocity( this.Velocity );
 
 		this.Cost = map.GetTourLength( this.Position );
 
@@ -65,6 +66,21 @@ public class Particle
 		}
 	}
 
+	/// <summary>
+	/// Updates the particle's velocity based on cognitive, social, and inertia components.
+	/// </summary>
+	/// <remarks>
+	/// The updated velocity incorporates influences from the particle's own best-known position (cognitive component), 
+	/// the global best position (social component), and a portion of the previous velocity (inertia). The probability of 
+	/// including each component is determined by the corresponding settings. This method is typically used in discrete PSO 
+	/// algorithms where velocity is represented as a sequence of swaps.
+	/// </remarks>
+	/// <param name="globalBest">
+	/// The global best position found by any particle in the swarm. Used to compute the social component of the velocity update.
+	/// </param>
+	/// <returns>
+	/// A list of swap operations representing the new velocity. Each tuple specifies a swap to be applied to the particle's current position.
+	/// </returns>
 	List<(int, int)> UpdateVelocity( IList<int> globalBest )
 	{
 		var newVelocity = new List<(int, int)>();
@@ -111,7 +127,11 @@ public class Particle
 		}
 	}
 
-
+	/// <summary>
+	/// Applies a sequence of swap operations (velocity) to the particle's current position, resulting in a new position.
+	/// </summary>
+	/// <param name="velocity">A list of swap operations to apply. Each tuple specifies a swap to be performed on the current position.</param>
+	/// <returns>A new list of city indices representing the particle's position after applying the swaps.</returns>
 	List<int> ApplyVelocity( IList<(int, int)> velocity )
 	{
 		var newPosition = new List<int>( this.Position );

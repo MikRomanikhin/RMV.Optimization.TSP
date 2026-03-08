@@ -13,21 +13,42 @@ public class ParticleSwarm( TspMap map ) : TspAlgorithmBase( map )
 	List<Particle> swarm;
 	int stagnation = 0;
 
+	/// <summary>
+	/// Configures the current instance using the 'pso' section from the configuration manager.
+	/// </summary>	
 	protected override void Configure()
 	{
 		this.settings = ConfigManager.GetSection<PsoSettings>( "pso" );
 		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );
 	}
 
+	/// <summary>
+	/// Initializes the algorithm and constructs the initial tour for TSP solution.
+	/// </summary>
+	/// <remarks>
+	/// Method prepares the internal state required for the algorithm to proceed by building a nearest-neighbor tour 
+	/// and initializing the swarm. It should be called before performing further optimization steps.
+	/// </remarks>
+	/// <returns>TspResult representing the initial tour generated for the TSP, or null if initialization fails.</returns>
 	protected override TspResult? Initialize()
 	{
-		var nearest = base.BuildNearestTour(); //base.InitializeTour()
+		var nearest = base.InitializeTour();
 
 		this.swarm = InitializeSwarm( nearest );
 
 		return nearest;
 	}
 
+	/// <summary>
+	/// Performs a single optimization epoch, updating particle states and applying local search to improve the best solution.
+	/// </summary>
+	/// <remarks>
+	/// Method updates all particles in the swarm in parallel and applies a local search when a new best solution is found. 
+	/// If the algorithm stagnates for a prolonged period, it restarts the worst-performing particles to encourage exploration. 
+	/// This method is typically called repeatedly as part of an iterative optimization process.
+	/// </remarks>
+	/// <param name="best">The current best solution found so far. Used as a reference for updating particle states during this epoch.</param>
+	/// <returns>A new or updated best solution found during this epoch, or the input solution if no improvement was made.</returns>
 	protected override TspResult? RunEpoch( TspResult best )
 	{
 		TspResult current = best;
@@ -37,35 +58,48 @@ public class ParticleSwarm( TspMap map ) : TspAlgorithmBase( map )
 		{
 			particle.Update( current.Path, base.map );
 		} );
+				
+		var iterBest = this.swarm.MinBy( p => p.Cost ); // Find iteration best
 
-		// Find iteration best
-		var iterBest = this.swarm.MinBy( p => p.Cost );
+		bool newBestFound = iterBest.Cost + MARGIN < current.Tour;
 
-		if( iterBest.Cost + MARGIN < current.Tour )
+		// Apply local search to the iteration best to refine it. If stagnating, search it anyway to help break out.
+		if( newBestFound || ( this.stagnation > 0 && this.stagnation % 50 == 0 ) )
 		{
-			// Apply local search only when a new best is found
-			var improved = Parallel2OptSearch( [ .. iterBest.Position ] );//LinKernighanSearch( [ .. iterBest.Position ] );
+			var improved = ParallelLocalSearch( [ .. iterBest.Position ] ); // Use robust parallel local search
 
 			iterBest.SetPosition( improved.Path, improved.Tour );
 
-			this.stagnation = 0;
-
-			current = improved;
-		}
-		else
-		{
-			this.stagnation++;
-
-			// Restart worst particles when stagnating to inject diversity
-			if( this.stagnation > 0 && this.stagnation % 500 == 0 )
+			if( improved.Tour + MARGIN < current.Tour )
 			{
-				RestartWorst();
+				this.stagnation = 0;
+				current = improved;
+				newBestFound = true; // Confirmed post-local search
+			}
+		}
+
+		if( !newBestFound )
+		{									
+			if( ++this.stagnation > 0 && this.stagnation % 100 == 0 )
+			{
+				RestartWorst(); // Restart worst particles when stagnating to inject diversity
 			}
 		}
 
 		return current;
 	}
 
+	/// <summary>
+	/// Initializes a swarm of particles for the particle swarm optimization algorithm, seeding the first particle with the
+	/// provided nearest-neighbour solution.
+	/// </summary>
+	/// <remarks>
+	/// The size of the swarm is determined by the current settings. This method ensures that the initial
+	/// swarm contains a diverse set of solutions, which can improve optimization performance.
+	/// </remarks>
+	/// <param name="nearest">The nearest-neighbour solution to use for initializing the first particle in the swarm. Cannot be null.</param>
+	/// <returns>A list of particles representing the initialized swarm. The first particle is seeded with the nearest-neighbour
+	/// solution; the remaining particles are initialized with random tours.</returns>
 	List<Particle> InitializeSwarm( TspResult nearest )
 	{
 		List<Particle> particles = [];
@@ -75,7 +109,8 @@ public class ParticleSwarm( TspMap map ) : TspAlgorithmBase( map )
 
 		for( int i = 1; i < settings.Size; i++ )
 		{
-			var tour = base.map.BuildRandomTour();
+			// Give swarm slightly randomized start paths based on the NN guide to jumpstart learning
+			var tour = i < settings.Size / 4 ? base.RandomSwap( nearest ) : base.map.BuildRandomTour();
 
 			particles.Add( new Particle( i, tour.Path, tour.Tour ) );
 		}
@@ -96,8 +131,8 @@ public class ParticleSwarm( TspMap map ) : TspAlgorithmBase( map )
 		{
 			var tour = base.map.BuildRandomTour();
 
-			sorted[ i ].SetPosition( tour.Path, tour.Tour );
-			sorted[ i ].Velocity = [];
+			// Fully reset memory! Do not keep the old stagnated personal best!
+			sorted[ i ] = new Particle( sorted[ i ].ID, tour.Path, tour.Tour );
 		}
 	}
 }

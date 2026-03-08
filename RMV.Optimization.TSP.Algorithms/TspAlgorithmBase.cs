@@ -92,7 +92,7 @@ public abstract class TspAlgorithmBase : ITspAsync
 		return best;
 	}
 
-	protected virtual TspResult? Initialize() => default;
+	protected virtual TspResult? Initialize() => this.map.BuildRandomTour();
 	protected TspResult? InitializeTour() => this.map.BuildRandomTour();
 	protected List<TspResult> InitializePopulation( int size ) => [ .. Enumerable.Range( 0, size ).Select( _ => InitializeTour() ) ];
 	protected virtual TspResult? RunEpoch( TspResult best ) { return default; }
@@ -114,7 +114,29 @@ public abstract class TspAlgorithmBase : ITspAsync
 
 	#endregion
 
-	
+
+	#region Local Search Selection ---------------------------------------------
+
+	/// <summary>
+	/// Selects a local search algorithm to apply in parallel
+	/// </summary>
+	/// <param name="path">The path to optimize</param>
+	/// <returns>The optimized TSP result</returns>	
+	protected TspResult ParallelLocalSearch( List<int> path )
+	{		
+		return Random.Shared.Next( 7 ) switch 
+		{
+			0 or 1 or 2 or 3 => Parallel2OptSearch( path ),
+			4 => Parallel2p5OptSearch( path ),
+			5 => Parallel3OptSearch( path ),
+			6 => ParallelLinKernighanSearch( path ),
+			_ => throw new InvalidOperationException( "Invalid random choice" ),
+		};
+	}
+
+	#endregion
+
+
 	#region RandomSwap ---------------------------------------------------------
 
 	/// <summary>
@@ -143,33 +165,19 @@ public abstract class TspAlgorithmBase : ITspAsync
 		(copy[ i ], copy[ j ]) = (copy[ j ], copy[ i ]);
 
 		return TspResult.Build( this.map, copy );
-	}
-
-	//protected TspResult RandomSwap( TspResult result )
-	//{
-	//	var copy = new List<int>( result.Path );
-
-	//	var indexes = IRandomSequence.GetUniqueInts( 2, 0, result.Path.Count - 1 );
-
-	//	int i = indexes[ 0 ];
-	//	int j = indexes[ 1 ];
-
-	//	(copy[ i ], copy[ j ]) = (copy[ j ], copy[ i ]);
-
-	//	return new TspResult( this.map.GetTourLength( copy ), copy );
-	//}
+	}	
 
 	#endregion
 
 
-	#region Local 2-opt Search -------------------------------------------------
+	#region 2-opt Search -------------------------------------------------------
 
 	/// <summary>
 	/// Local Search algorithm
 	/// </summary>
 	/// <param name="path">target path</param>
 	/// <remarks>iteratively reverses segments in the path to improve the tour length</remarks>
-	protected TspResult Local2OptSearch( IList<int> path )
+	protected TspResult Local2OptSearch( List<int> path )
 	{
 		double tour = this.map.GetTourLength( path );
 
@@ -201,12 +209,26 @@ public abstract class TspAlgorithmBase : ITspAsync
 	}
 
 	/// <summary>
-	/// Parallel local 2-opt search for TSP
+	/// Reverses the order of nodes between indices i and j in the path
+	/// </summary>	
+	protected static List<int> TwoOptSwap( List<int> path, int i, int j )
+	{
+		var copy = new List<int>( path );
+
+		copy.Reverse( i, j - i + 1 );
+
+		return copy;
+	}
+
+	/// <summary>
+	/// Parallel local 2-opt search for TSP using delta evaluations
 	/// </summary>	
 	/// <remarks>: tries to improve the tour by removing two edges and reconnecting the nodes</remarks>
-	protected TspResult Parallel2OptSearch( IList<int> path )
+	protected TspResult Parallel2OptSearch( List<int> path )
 	{
-		double tour = this.map.GetTourLength( path );
+		int[] tourArray = [ .. path ];
+		int cities = tourArray.Length;
+		double bestTour = this.map.GetTourLength( path );
 
 		bool improved = true;
 		object lockObj = new();
@@ -217,16 +239,24 @@ public abstract class TspAlgorithmBase : ITspAsync
 
 			double bestDelta = 0;
 			int bestI = -1, bestJ = -1;
-			List<int> bestPath = [];		
 
-			Parallel.For( 0, this.Cities - 1, i =>
-			{
-				for( int j = i + 1; j < this.Cities; j++ )
+			Parallel.For( 0, cities - 2, i => {
+				int a = tourArray[ i ];
+				int b = tourArray[ i + 1 ];
+				double w_ab = this.map[ a, b ].Weight;
+
+				// j must start at i+2, otherwise we are selecting adjacent edges (which share a node)
+				for( int j = i + 2; j < cities; j++ )
 				{
-					var newPath = TwoOptSwap( path, i, j );
-					double newTour = this.map.GetTourLength( newPath );
+					// If i == 0 and j == cities - 1, we are reversing the entire path minus the endpoints,
+					// which represents the same logical tour. We can skip it.
+					if( i == 0 && j == cities - 1 ) continue;
 
-					double delta = tour - newTour;
+					int c = tourArray[ j ],  d = tourArray[ ( j + 1 ) % cities ];
+					double w_cd = this.map[ c, d ].Weight;
+
+					// 2-opt delta: cost of removed edges vs cost of added edges
+					double delta = w_ab + w_cd - ( this.map[ a, c ].Weight + this.map[ b, d ].Weight );
 
 					if( delta > MARGIN )
 					{
@@ -235,107 +265,34 @@ public abstract class TspAlgorithmBase : ITspAsync
 							if( delta > bestDelta )
 							{
 								bestDelta = delta;
-								(bestI, bestJ) = (i, j);
-								bestPath = newPath;
+								bestI = i;
+								bestJ = j;
 							}
 						}
 					}
 				}
 			} );
 
-			if( bestI != -1 && bestJ != -1 )
-			{
-				path = TwoOptSwap( path, bestI, bestJ );
-				tour = this.map.GetTourLength( path );
+			if( bestDelta > MARGIN ) // Apply the best move in place
+			{				
+				ReverseSegment( tourArray, bestI + 1, bestJ );
+				bestTour -= bestDelta; // Update tour track naturally
 				improved = true;
-			}			
+			}
+		}
+				
+		for( int i = 0; i < cities; i++ ) // Update the original passed list
+		{
+			path[ i ] = tourArray[ i ];
 		}
 
-		return new TspResult( tour, path );
+		return new TspResult( bestTour, path );
 	}
 
 	#endregion
 
 
-	#region Local 2.5-opt Search -----------------------------------------------
-
-	#region obsolete
-	/// <summary>
-	/// Local 2.5-opt search for TSP: tries to improve the tour by removing two edges and inserting a node
-	/// </summary>	
-	//protected TspResult Local2Point5OptSearch( IList<int> path )
-	//{
-	//	var copy = new List<int>( path );
-
-	//	bool improvement = true;
-
-	//	while( improvement )
-	//	{
-	//		improvement = false;
-
-	//		// 2-opt improvement
-	//		for( int i = 0; i < copy.Count - 2; i++ )
-	//		{
-	//			for( int j = i + 2; j < copy.Count; j++ )
-	//			{
-	//				if( CalculateDelta( copy, i, j ) < -MARGIN )
-	//				{
-	//					ReverseSegment( copy, i + 1, j );
-	//					improvement = true;
-	//					goto RestartSearch;
-	//				}
-	//			}
-	//		}
-
-	//		// 2.5-opt node insertion
-	//		for( int i = 0; i < copy.Count - 2; i++ )
-	//		{
-	//			for( int j = i + 2; j < copy.Count; j++ )
-	//			{
-	//				for( int k = 0; k < copy.Count; k++ )
-	//				{
-	//					if( k == i || k == j || k == j + 1 ) continue;
-	//					//if( j < 0 || j >= copy.Count ) continue;
-
-	//					int node = copy[ j ];
-	//					int insertPos = k > j ? k - 1 : k;
-
-	//					if( insertPos < 0 || insertPos > copy.Count - 1 ) continue;
-
-	//					// Defensive: ensure indices for CalculateInsertionDelta are valid
-	//					//if( i < 0 || i >= copy.Count - 1 || insertPos < 0 || insertPos >= copy.Count ) continue;
-
-	//					if( CalculateInsertionDelta( copy, i, j, k ) < -MARGIN )
-	//					{
-	//						copy.RemoveAt( j );
-	//						copy.Insert( insertPos, node );
-	//						improvement = true;
-	//						goto RestartSearch;
-	//					}
-	//				}
-	//			}
-	//		}
-
-	//		break; // If no improvement, break out of the loop
-
-	//	RestartSearch:;
-	//	}
-
-	//	return new TspResult( this.map.GetTourLength( copy ), copy );
-	//}
-
-	//double CalculateInsertionDelta( List<int> path, int i, int j, int k )
-	//{
-	//	int n = path.Count;
-
-	//	if( i < 0 || i >= n - 1 || j < 0 || j >= n || k < 0 || k >= n )
-	//		throw new ArgumentOutOfRangeException( nameof( path ), $"Out of range:i={i},j={j},k={k}" );
-
-	//	int a = path[ i ], b = path[ ( i + 1 ) % n ], d = path[ k ];
-
-	//	return this.map[ a, d ].Weight + this.map[ d, b ].Weight - this.map[ a, b ].Weight;
-	//}
-	#endregion
+	#region Local 2.5-opt Search -----------------------------------------------	
 
 	/// <summary>
 	/// Local 2.5-opt search for TSP: tries to improve the tour by removing two edges and inserting a node
@@ -379,80 +336,6 @@ public abstract class TspAlgorithmBase : ITspAsync
 	}
 
 	/// <summary>
-	/// Parallel local 2.5-opt search for TSP: tries to improve the tour by removing two edges and inserting a node
-	/// </summary>
-	protected TspResult Parallel2p5OptSearch( IList<int> path )
-	{
-		var copy = new List<int>( path );
-
-		while( true )
-		{
-			double bestDelta = 0;
-			int bestI = -1, bestJ = -1, bestK = -1;
-			bool isTwoOpt = false;
-
-			// 2-opt: find best move in parallel
-			Parallel.For( 0, copy.Count - 2, i => 
-			{
-				for( int j = i + 2; j < copy.Count; j++ )
-				{
-					double delta = CalculateDelta( copy, i, j );
-
-					if( delta < -MARGIN )
-					{
-						lock( copy )
-						{
-							if( delta < bestDelta )
-							{
-								bestDelta = delta;
-								bestI = i;
-								bestJ = j;
-								bestK = -1;
-								isTwoOpt = true;
-							}
-						}
-					}
-																
-					for( int k = 0; k < copy.Count; k++ ) // 2.5-opt: find best node insertion
-					{
-						if( k == i || k == i + 1 || k == j ) continue;
-
-						delta = CalculateInsertionDelta( copy, i, k );
-
-						if( delta < -MARGIN )
-						{
-							lock( copy )
-							{
-								if( delta < bestDelta )
-								{
-									bestDelta = delta;
-									bestI = i;
-									bestJ = j;
-									bestK = k;
-									isTwoOpt = false;
-								}
-							}
-						}
-					}
-				}
-			} );
-
-			if( bestDelta > -MARGIN ) break;
-
-			if( isTwoOpt ) // Apply best move
-			{
-				ReverseSegment( copy, bestI + 1, bestJ );
-			}
-			else
-			{
-				InsertNode( copy, bestJ, bestK );
-			}
-		}
-
-		return TspResult.Build( this.map, copy );
-	}
-
-	/// <summary>
 	/// Calculates the delta for a 2-opt swap in the path
 	/// </summary>	
 	double CalculateDelta( List<int> path, int i, int j )
@@ -482,6 +365,140 @@ public abstract class TspAlgorithmBase : ITspAsync
 		tour.Insert( k, node );
 	}
 
+
+	/// <summary>
+	/// Parallel local 2.5-opt search for TSP: tries to improve the tour by removing two edges and inserting a node
+	/// </summary>
+	protected TspResult Parallel2p5OptSearch( List<int> path )
+	{
+		int[] tourArray = [ .. path ];
+		int cities = tourArray.Length;
+
+		double bestTour = this.map.GetTourLength( path );
+		bool improved = true;
+		object lockObj = new();
+
+		while( improved )
+		{
+			improved = false;
+
+			double bestDelta = 0;
+			int bestI = -1,  bestJ = -1,  bestK = -1;
+			bool isTwoOpt = false;
+
+			// Explore all 2-opt and 2.5-opt moves in parallel
+			Parallel.For( 0, cities - 2, i => {
+				int a = tourArray[ i ],  b = tourArray[ i + 1 ];
+				double w_ab = this.map[ a, b ].Weight;
+
+				for( int j = i + 2; j < cities; j++ )
+				{
+					int c = tourArray[ j ],  d = tourArray[ ( j + 1 ) % cities ];
+					double w_cd = this.map[ c, d ].Weight;
+
+					// 1. Calculate 2-Opt Delta
+					double delta2Opt = this.map[ a, c ].Weight + this.map[ b, d ].Weight - w_ab - w_cd;
+
+					if( delta2Opt < -MARGIN )
+					{
+						lock( lockObj )
+						{
+							if( delta2Opt < bestDelta )
+							{
+								bestDelta = delta2Opt;
+								bestI = i;	bestJ = j;
+								isTwoOpt = true;
+							}
+						}
+					}
+
+					// 2. Calculate 2.5-Opt Delta (Node Shifting/Insertion)
+					for( int k = 0; k < cities; k++ )
+					{
+						if( k == i || k == i + 1 || k == j ) continue;
+
+						int targetNode = tourArray[ k ];
+
+						// Node k is extracted and placed between i and i+1
+						// We break edges (k-1, k), (k, k+1) and (i, i+1)
+						// We form edges (k-1, k+1), (i, k), and (k, i+1)
+
+						int k_prev = tourArray[ ( k - 1 + cities ) % cities ];
+						int k_next = tourArray[ ( k + 1 ) % cities ];
+
+						double delta2p5 =
+							// Add new connections
+							this.map[ a, targetNode ].Weight + this.map[ targetNode, b ].Weight + this.map[ k_prev, k_next ].Weight
+							// Subtract broken connections
+							- w_ab - this.map[ k_prev, targetNode ].Weight - this.map[ targetNode, k_next ].Weight;
+
+						if( delta2p5 < -MARGIN )
+						{
+							lock( lockObj )
+							{
+								if( delta2p5 < bestDelta )
+								{
+									bestDelta = delta2p5;
+									bestI = i;        // destination insertion index
+									bestK = k;        // the node that is moved
+									isTwoOpt = false;
+								}
+							}
+						}
+					}
+				}
+			} );
+						
+			if( bestDelta < -MARGIN ) // Apply the best move
+			{
+				if( isTwoOpt )				
+					ReverseSegment( tourArray, bestI + 1, bestJ );				
+				else				
+					ShiftNode( tourArray, bestK, bestI );				
+
+				bestTour += bestDelta;
+				improved = true;
+			}
+		}
+				
+		for( int i = 0; i < cities; i++ ) // Copy back to original reference
+		{
+			path[ i ] = tourArray[ i ];
+		}
+
+		return new TspResult( bestTour, path );
+	}
+
+	/// <summary>
+	/// Moves the node at index 'source' to the location directly after 'destination'.
+	/// Modifies the array in place dynamically sliding the contents left or right.
+	/// </summary>
+	static void ShiftNode( int[] tour, int source, int destination )
+	{
+		int node = tour[ source ];
+
+		if( source < destination )
+		{
+			// Node moves right: shift elements between source+1 and destination to the left
+			for( int x = source; x < destination; x++ )
+			{
+				tour[ x ] = tour[ x + 1 ];
+			}
+
+			tour[ destination ] = node;
+		}
+		else if( source > destination )
+		{
+			// Node moves left: shift elements between destination+1 and source-1 to the right
+			for( int x = source; x > destination + 1; x-- )
+			{
+				tour[ x ] = tour[ x - 1 ];
+			}
+
+			tour[ destination + 1 ] = node;
+		}
+	}	
+
 	#endregion
 
 
@@ -490,7 +507,7 @@ public abstract class TspAlgorithmBase : ITspAsync
 	/// <summary>
 	/// Local 3-opt search for TSP: tries to improve the tour by removing three edges and reconnecting the nodes
 	/// </summary>	
-	protected TspResult Local3OptSearch( IList<int> path )
+	protected TspResult Local3OptSearch( List<int> path )
 	{
 		double best = this.map.GetTourLength( path );
 
@@ -534,67 +551,6 @@ public abstract class TspAlgorithmBase : ITspAsync
 		return new TspResult( best, path ); ;
 	}
 
-	protected TspResult Parallel3OptSearch( IList<int> path )
-	{
-		var currentPath = new List<int>( path );
-		double bestTour = this.map.GetTourLength( currentPath );
-
-		bool improved = true;
-		object lockObj = new();
-
-		while( improved )
-		{
-			improved = false;
-
-			double bestDelta = 0;
-			int bestI = -1, bestJ = -1, bestK = -1;
-			List<int>? bestNewPath = null;
-
-			Parallel.For( 1, currentPath.Count - 3, i =>
-			{
-				for( int j = i + 1; j < currentPath.Count - 2; j++ )
-				{
-					for( int k = j + 1; k < currentPath.Count - 1; k++ )
-					{
-						var swaps = Generate3OptSwaps( currentPath, i, j, k );
-
-						foreach( var newPath in swaps )
-						{
-							double newTour = this.map.GetTourLength( newPath );
-							double delta = bestTour - newTour;
-
-							if( delta > MARGIN )
-							{
-								lock( lockObj )
-								{
-									if( delta > bestDelta )
-									{
-										bestDelta = delta;
-										bestI = i;
-										bestJ = j;
-										bestK = k;
-										bestNewPath = new List<int>( newPath );
-									}
-								}
-							}
-						}
-					}
-				}
-			} );
-
-			if( bestNewPath != null )
-			{
-				currentPath = bestNewPath;
-				bestTour = this.map.GetTourLength( currentPath );
-				improved = true;
-			}
-		}
-
-		return new TspResult( bestTour, currentPath );
-	}
-
-
-
 	/// <summary>
 	/// Generates all possible 3-opt swaps for the given tour and indices i, j, k
 	/// </summary>	
@@ -619,6 +575,155 @@ public abstract class TspAlgorithmBase : ITspAsync
 		newTours.Add( case3 );
 
 		return newTours;
+	}
+
+	/// <summary>
+	/// Parallel 3-opt search for TSP using delta evaluations.
+	/// </summary>
+	protected TspResult Parallel3OptSearch( List<int> path )
+	{
+		var currentPath = new List<int>( path );
+		int cities = currentPath.Count;
+		double bestTour = this.map.GetTourLength( currentPath );
+
+		bool improved = true;
+		object lockObj = new();
+
+		while( improved )
+		{
+			improved = false;
+
+			double bestDelta = 0;
+			int bestI = -1, bestJ = -1, bestK = -1;
+			int bestCase = -1;
+
+			Parallel.For( 0, cities - 2, i => {
+				int a = currentPath[ i ];
+				int b = currentPath[ i + 1 ];
+				double w_ab = this.map[ a, b ].Weight;
+
+				for( int j = i + 1; j < cities - 1; j++ )
+				{
+					int c = currentPath[ j ];
+					int d = currentPath[ j + 1 ];
+					double w_cd = this.map[ c, d ].Weight;
+
+					for( int k = j + 1; k < cities; k++ )
+					{
+						int e = currentPath[ k ];
+						int f = currentPath[ ( k + 1 ) % cities ];
+						double w_ef = this.map[ e, f ].Weight;
+
+						// Cost of the 3 edges being removed
+						double removedCost = w_ab + w_cd + w_ef;
+
+						// Case 1: 2-opt between (a,b) and (c,d) - handled by 2-opt usually, but included here
+						double d1 = removedCost - ( this.map[ a, c ].Weight + this.map[ b, d ].Weight + w_ef );
+						// Case 2: 2-opt between (c,d) and (e,f)
+						double d2 = removedCost - ( w_ab + this.map[ c, e ].Weight + this.map[ d, f ].Weight );
+						// Case 3: 2-opt between (a,b) and (e,f)
+						double d3 = removedCost - ( this.map[ a, e ].Weight + w_cd + this.map[ b, f ].Weight );
+						// Case 4: 3-opt pure (swap segments, no reverse) a-d-e-b-c-f
+						double d4 = removedCost - ( this.map[ a, d ].Weight + this.map[ e, b ].Weight + this.map[ c, f ].Weight );
+						// Case 5: 3-opt a-d-e-c-b-f
+						double d5 = removedCost - ( this.map[ a, d ].Weight + this.map[ e, c ].Weight + this.map[ b, f ].Weight );
+						// Case 6: 3-opt a-e-d-b-c-f
+						double d6 = removedCost - ( this.map[ a, e ].Weight + this.map[ d, b ].Weight + this.map[ c, f ].Weight );
+						// Case 7: 3-opt a-c-b-e-d-f
+						double d7 = removedCost - ( this.map[ a, c ].Weight + this.map[ b, e ].Weight + this.map[ d, f ].Weight );
+
+						// Find the max delta among the 7 combinations
+						double maxDelta = Math.Max( Math.Max( Math.Max( d1, d2 ), Math.Max( d3, d4 ) ), Math.Max( Math.Max( d5, d6 ), d7 ) );
+
+						if( maxDelta > MARGIN )
+						{
+							int caseType = 1;
+							if( maxDelta == d2 ) caseType = 2;
+							else if( maxDelta == d3 ) caseType = 3;
+							else if( maxDelta == d4 ) caseType = 4;
+							else if( maxDelta == d5 ) caseType = 5;
+							else if( maxDelta == d6 ) caseType = 6;
+							else if( maxDelta == d7 ) caseType = 7;
+
+							lock( lockObj )
+							{
+								if( maxDelta > bestDelta )
+								{
+									bestDelta = maxDelta;
+									bestI = i;
+									bestJ = j;
+									bestK = k;
+									bestCase = caseType;
+								}
+							}
+						}
+					}
+				}
+			} );
+
+			if( bestDelta > MARGIN )
+			{
+				Apply3OptSwap( currentPath, bestI, bestJ, bestK, bestCase );
+				bestTour -= bestDelta; // Update tour track naturally
+				improved = true;
+			}
+		}
+
+		// Update the original passed list
+		for( int idx = 0; idx < cities; idx++ )
+		{
+			path[ idx ] = currentPath[ idx ];
+		}
+
+		return new TspResult( this.map.GetTourLength( path ), path );
+	}
+
+	/// <summary>
+	/// Reconnects the path based on the selected 3-opt or 2-opt configuration.
+	/// </summary>
+	static void Apply3OptSwap( List<int> path, int i, int j, int k, int caseType )
+	{
+		var copy = new List<int>( path ); // Create a temporary copy to correctly resolve out-of-place index moves
+
+		int n = path.Count;
+		int index = 0;
+
+		switch( caseType )
+		{
+			case 1:
+				ReverseSegment( path, i + 1, j );
+				break;
+			case 2:
+				ReverseSegment( path, j + 1, k );
+				break;
+			case 3:
+				ReverseSegment( path, i + 1, k );
+				break;
+			case 4: // a-d-e-b-c-f (Swap segments without reversing)
+				for( int x = 0; x <= i; x++ ) path[ index++ ] = copy[ x % n ];
+				for( int x = j + 1; x <= k; x++ ) path[ index++ ] = copy[ x % n ];
+				for( int x = i + 1; x <= j; x++ ) path[ index++ ] = copy[ x % n ];
+				for( int x = k + 1; x < n; x++ ) path[ index++ ] = copy[ x % n ];
+				break;
+			case 5: // a-d-e-c-b-f  (Swap segments and reverse second)
+				for( int x = 0; x <= i; x++ ) path[ index++ ] = copy[ x % n ];
+				for( int x = j + 1; x <= k; x++ ) path[ index++ ] = copy[ x % n ];
+				for( int x = j; x >= i + 1; x-- ) path[ index++ ] = copy[ x % n ];
+				for( int x = k + 1; x < n; x++ ) path[ index++ ] = copy[ x % n ];
+				break;
+			case 6: // a-e-d-b-c-f (Swap segments and reverse first)
+				for( int x = 0; x <= i; x++ ) path[ index++ ] = copy[ x % n ];
+				for( int x = k; x >= j + 1; x-- ) path[ index++ ] = copy[ x % n ];
+				for( int x = i + 1; x <= j; x++ ) path[ index++ ] = copy[ x % n ];
+				for( int x = k + 1; x < n; x++ ) path[ index++ ] = copy[ x % n ];
+				break;
+			case 7: // a-c-b-e-d-f (Double reverse, no segment swap)
+				for( int x = 0; x <= i; x++ ) path[ index++ ] = copy[ x % n ];
+				for( int x = j; x >= i + 1; x-- ) path[ index++ ] = copy[ x % n ];
+				for( int x = k; x >= j + 1; x-- ) path[ index++ ] = copy[ x % n ];
+				for( int x = k + 1; x < n; x++ ) path[ index++ ] = copy[ x % n ];
+				break;
+		}
 	}	
 
 	#endregion
@@ -627,59 +732,183 @@ public abstract class TspAlgorithmBase : ITspAsync
 	#region Lin-Kernighan Search -----------------------------------------------
 
 	/// <summary>
-	/// Local Lin-Kernighan Search for TSP
+	/// Local 2-opt Search for TSP (First Improvement)
+	/// Currently named LinKernighanSearch but implements 2-opt.
 	/// </summary>
 	/// <remarks>iteratively reverses segments in the path to improve the tour length</remarks>	
-	public TspResult LinKernighanSearch( IList<int> path )
-	{		
+	public TspResult LinKernighanSearch( List<int> path )
+	{
+		// 1. Work with a raw array to avoid interface/virtual method dispatch overhead
+		int[] tourArray = [ .. path ];
+		int cities = tourArray.Length;
+
 		bool improved = true;
 
 		while( improved )
 		{
 			improved = false;
 
-			for( int i = 0; i < this.Cities - 1; i++ )
+			for( int i = 0; i < cities - 1; i++ )
 			{
-				for( int j = i + 1; j < this.Cities; j++ )
+				int a = tourArray[ i ];
+				int b = tourArray[ i + 1 ];
+				double weight_ab = this.map[ a, b ].Weight;
+
+				for( int j = i + 1; j < cities; j++ )
 				{
-					double delta = GetDelta( path, i, j );
+					int c = tourArray[ j ];
+					int d = tourArray[ ( j + 1 ) % cities ]; // Modulo only on the outer edge
+										
+					double delta = this.map[ a, c ].Weight + this.map[ b, d ].Weight - weight_ab - this.map[ c, d ].Weight;
 
-					if( delta < 0 ) // Reverse the segment between i+1 and j
+					if( delta < -MARGIN ) // Reverse the segment between i+1 and j
 					{
-						ReverseSegment( path, i + 1, j );
+						ReverseSegment( tourArray, i + 1, j );
+						improved = true;
 
-						improved = true;						
+						// In a "First Improvement" strategy, you can restart from the inner loop
+						// or let the outer loop continue. Breaking out restarts the search.
+						// break; // Optional: break here if you want to restart outer loop immediately
 					}
 				}
-			}		
+			}
+		}
+
+		// Optional: Update the original IList if needed, or simply return the new array.
+		for( int i = 0; i < cities; i++ )
+		{
+			path[ i ] = tourArray[ i ];
 		}
 
 		return new TspResult( this.map.GetTourLength( path ), path );
 	}
 
+	/// <summary>
+	/// Calculates the change in tour length if the segment between indices i and j is reversed.
+	/// </summary>
+	/// <param name="path">The current tour path.</param>
+	/// <param name="i">The starting index of the segment to reverse.</param>
+	/// <param name="j">The ending index of the segment to reverse.</param>
+	/// <returns>The change in tour length if the segment is reversed.</returns>
 	double GetDelta( IList<int> path, int i, int j )
-	{		
+	{
 		int a = path[ i ], b = path[ ( i + 1 ) % this.Cities ], c = path[ j ], d = path[ ( j + 1 ) % this.Cities ];
-		
+
 		return this.map[ a, c ].Weight + this.map[ b, d ].Weight - this.map[ a, b ].Weight - this.map[ c, d ].Weight;
 	}
 
-	static void ReverseSegment( IList<int> path, int start, int end )
+	/// <summary>
+	/// Reverses the order of elements in a specified segment of the array in place.
+	/// </summary>
+	/// <remarks>Only the elements between <paramref name="start"/> and <paramref name="end"/>, inclusive, are
+	/// reversed. The operation modifies the original array.</remarks>
+	/// <param name="path">The array whose segment will be reversed. Cannot be null.</param>
+	/// <param name="start">The zero-based starting index of the segment to reverse. Must be >= 0 and <= to <paramref name="end"/>.</param>
+	/// <param name="end">The zero-based ending index of the segment to reverse. Must be >= to 'start' and < the length of 'path'</param>
+	static void ReverseSegment( int[] path, int start, int end )
 	{
-		//int mid = ( end - start + 1 ) / 2;
-
-		//for( int offset = 0; offset < mid; offset++ )
-		//{
-		//	(path[ start + offset ], path[ end - offset ]) = (path[ end - offset ], path[ start + offset ]);
-		//}
-
 		while( start < end )
 		{
-			(path[ start ], path[ end ]) = (path[ end ], path[ start ]); // Swap elements			
+			(path[ start ], path[ end ]) = (path[ end ], path[ start ]);
 			start++;
 			end--;
 		}
 	}
+
+	/// <summary>
+	/// Reverses the order of elements in a specified segment of the provided list in place.
+	/// </summary>
+	/// <remarks>Only the elements between <paramref name="start"/> and <paramref name="end"/>, inclusive, are reversed. 
+	/// The operation modifies the original list.</remarks>
+	/// <param name="path">The list whose segment will be reversed. Cannot be null.</param>
+	/// <param name="start">The zero-based index at which the segment to reverse begins. Must be >= to 0 and <= to <paramref name="end"/>.</param>
+	/// <param name="end">The zero-based index at which the segment to reverse ends. Must be >= to <paramref name="start"/> and < path.Count</param>
+	static void ReverseSegment( IList<int> path, int start, int end )
+	{		
+		while( start < end ) // Kept for backward compatibility with other methods using IList<int>
+		{
+			(path[ start ], path[ end ]) = (path[ end ], path[ start ]);
+			start++;
+			end--;
+		}
+	}
+
+	/// <summary>
+	/// Parallel "Any-Improvement" 2-opt Search for TSP.
+	/// Uses parallelization but stops early as soon as any thread finds a valid improvement.
+	/// </summary>	
+	public TspResult ParallelLinKernighanSearch( List<int> path )
+	{
+		var tourArray = new List<int>( path );
+		int cities = tourArray.Count;
+		double bestTour = this.map.GetTourLength( path );
+
+		bool improved = true;
+		object lockObj = new();
+
+		while( improved )
+		{
+			improved = false;
+
+			double bestDelta = 0;
+			int bestI = -1, bestJ = -1;
+
+			// We pass 'loopState' so we can signal an early exit
+			Parallel.For( 0, cities - 2, ( i, loopState ) => 
+			{
+				int a = tourArray[ i ];
+				int b = tourArray[ i + 1 ];
+				double w_ab = this.map[ a, b ].Weight;
+
+				for( int j = i + 2; j < cities; j++ )
+				{
+					// If another thread already found an improvement, stop evaluating
+					if( loopState.IsStopped ) break;
+
+					if( i == 0 && j == cities - 1 ) continue; // Skip full loop reversal
+
+					int c = tourArray[ j ];
+					int d = tourArray[ ( j + 1 ) % cities ];
+					double w_cd = this.map[ c, d ].Weight;
+
+					// Evaluate delta locally
+					double delta = w_ab + w_cd - ( this.map[ a, c ].Weight + this.map[ b, d ].Weight );
+
+					if( delta > MARGIN )
+					{
+						lock( lockObj )
+						{
+							// Since multiple threads might hit this lock at the same time before 
+							// IsStopped propagates, we ensure we grab the biggest delta found so far
+							if( delta > bestDelta )
+							{
+								bestDelta = delta;
+								bestI = i;
+								bestJ = j;
+
+								// Signal all other threads to abort their loops
+								loopState.Stop();
+							}
+						}
+					}
+				}
+			} );
+			
+			if( bestDelta > MARGIN ) // If any thread found an improvement, apply it sequentially and loop again
+			{
+				ReverseSegment( tourArray, bestI + 1, bestJ );
+				bestTour -= bestDelta;
+				improved = true;
+			}
+		}
+
+		for( int i = 0; i < cities; i++ )
+		{
+			path[ i ] = tourArray[ i ];
+		}
+
+		return new TspResult( bestTour, path );
+	}	
 
 	#endregion
 
@@ -689,7 +918,7 @@ public abstract class TspAlgorithmBase : ITspAsync
 	/// <summary>
 	/// Swaps two cities in the path and returns the action and the delta of the tour length after the swap
 	/// </summary>
-	/// <remarks>Based on ideas from https://github.com/Inspiaaa/TSP-Simulated-Annealing/blob/master/Scripts/SimulatedAnnealing.cs</remarks>	
+	/// <remarks>Based on https://github.com/Inspiaaa/TSP-Simulated-Annealing/blob/master/Scripts/SimulatedAnnealing.cs</remarks>	
 	public (Action, double) Swap( IList<int> path )
 	{
 		return Random.Shared.Next( 6 ) switch 
@@ -700,8 +929,7 @@ public abstract class TspAlgorithmBase : ITspAsync
 			_ => throw new ArgumentException( "OOPS!" ),
 		};
 	}
-
-	#region Swap -----------------------------------------------------
+	
 
 	(Action, double) GetDeltaAfterSwap( IList<int> path )
 	{
@@ -745,9 +973,7 @@ public abstract class TspAlgorithmBase : ITspAsync
 		delta += this.map[ posBeforeA, posB ].Weight + this.map[ posB, posAfterA ].Weight + this.map[ posBeforeB, posA ].Weight + this.map[ posA, posAfterB ].Weight;
 
 		return delta;
-	}
-
-	#endregion
+	}	
 
 	#region Transport ------------------------------------------------
 
@@ -860,19 +1086,7 @@ public abstract class TspAlgorithmBase : ITspAsync
 	#endregion
 
 
-	#region TwoOptSwap ---------------------------------------------------------
-
-	/// <summary>
-	/// Reverses the order of nodes between indices i and j in the path
-	/// </summary>	
-	protected static List<int> TwoOptSwap( IList<int> path, int i, int j )
-	{
-		var copy = new List<int>( path );
-
-		copy.Reverse( i, j - i + 1 );
-
-		return copy;
-	}
+	#region TwoOptSwap ---------------------------------------------------------	
 
 
 	/// <summary>
@@ -920,7 +1134,7 @@ public abstract class TspAlgorithmBase : ITspAsync
 	/// <param name="best">Initial TspResult (will not be modified)</param>
 	/// <param name="maxSegmentLength">Maximum segment length to move (1, 2, or 3)</param>
 	/// <returns>Improved TspResult</returns>
-	protected TspResult OrOptSwap( IList<int> path, int maxSegmentLength = 3 )
+	protected TspResult OrOptSwap( List<int> path, int maxSegmentLength = 3 )
 	{
 		double tour = this.map.GetTourLength( path );
 
@@ -952,7 +1166,7 @@ public abstract class TspAlgorithmBase : ITspAsync
 		return new TspResult( tour, path );
 	}
 
-	bool TryInsert( ref IList<int> path, ref double tour, int i, List<int> segment, List<int> rest )
+	bool TryInsert( ref List<int> path, ref double tour, int i, List<int> segment, List<int> rest )
 	{
 		for( int insertPos = 0; insertPos <= rest.Count; insertPos++ )
 		{
@@ -986,7 +1200,7 @@ public abstract class TspAlgorithmBase : ITspAsync
 	/// </summary>
 	protected TspResult BuildNearestTour()
 	{
-		var best = new TspResult( double.MaxValue, new int[ this.Cities ] );
+		var best = new TspResult( double.MaxValue, new List<int>( this.Cities ) );
 
 		for( int city = 0; city < this.Cities; city++ )
 		{
@@ -1023,76 +1237,6 @@ public abstract class TspAlgorithmBase : ITspAsync
 		tour += this.map[ path[ 0 ], path[ ^1 ] ].Weight;
 
 		return new TspResult( tour, path );
-	}
-
-	#endregion
-
-
-	#region Duplicates ---------------------------------------------------------
-
-	/// <summary>
-	/// Replace duplicates in the population by random tour
-	///</summary>
-	protected List<TspResult> CleanDuplicates( List<TspResult> population )
-	{
-		int count = population.Count;
-
-		var result = population.Distinct().OrderBy( c => c.Tour ).ToList();
-
-		while( result.Count < count ) result.Add( this.map.BuildRandomTour() );
-
-		return result;
-	}
-
-	/// <summary>
-	/// Alter duplicates in the population
-	/// </summary>	
-	protected List<TspResult> HandleDuplicates( List<TspResult> population, Func<IList<int>, IList<int>> func )
-	{
-		var (unique, duplicates) = Split( population );
-
-		if( !duplicates.Any() ) return [ .. unique.OrderBy( u => u.Tour ) ]; // No duplicates to swap
-
-		ChangeDuplicates( duplicates, func );
-
-		return [ .. unique.Concat( duplicates ).OrderBy( u => u.Tour ) ];
-	}	
-
-	/// <summary>
-	/// Splits collection into unique and duplicate solutions
-	/// </summary>	
-	static (List<TspResult>, List<TspResult>) Split( List<TspResult> results )
-	{
-		var unique = new List<TspResult>();
-		var duplicate = new List<TspResult>();
-
-		var seen = new HashSet<TspResult>();
-
-		foreach( var item in results )
-		{
-			if( !seen.Add( item ) )
-			{
-				duplicate.Add( item );
-			}
-			else
-			{
-				unique.Add( item );
-			}
-		}
-
-		return (unique, duplicate);
-	}
-
-	/// <summary>
-	/// Alter the path of duplicate solutions by applying a Func
-	/// </summary>	
-	void ChangeDuplicates( List<TspResult> duplicates, Func<IList<int>, IList<int>> func )
-	{
-		foreach( var duplicate in duplicates )
-		{
-			duplicate.Path = func( duplicate.Path ); // alter the path of the duplicate solution
-			duplicate.Tour = this.map.GetTourLength( duplicate.Path ); // Recalculate tour length after mutation			
-		}
 	}
 
 	#endregion
@@ -1164,9 +1308,9 @@ public abstract class TspAlgorithmBase : ITspAsync
 
 		(int start, int end) = IRandomSequence.GetPairInts( 0, length - 1 ); // crossover points	
 
-		var child = new int[ length ];
+		var child = new List<int>( new int[ length ] );
 
-		Array.Copy( parent1.Path.ToArray(), start, child, start, end - start + 1 ); // Initialize child with parent1's path		
+		Array.Copy( parent1.Path.ToArray(), start, child.ToArray(), start, end - start + 1 ); // Initialize child with parent1's path		
 
 		int index = ( end + 1 ) % length;
 

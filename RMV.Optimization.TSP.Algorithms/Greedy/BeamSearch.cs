@@ -63,7 +63,7 @@ public class BeamSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 		// Complete tours and find best, then refine with local search
 		var best = beam.Select( s => CompleteTour( s, start ) ).MinBy( r => r.Tour );
 
-		return Parallel2OptSearch( [ .. best.Path ] );//LinKernighanSearch( [ .. best.Path ] );
+		return ParallelLocalSearch( [ .. best.Path ] );
 	}
 
 	/// <summary>

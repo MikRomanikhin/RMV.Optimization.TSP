@@ -7,7 +7,7 @@ public class TspResult//( double tour, IList<int> path ) //: IEquatable<TspResul
 {
 	public TspResult() { }
 
-	public TspResult( double tour, IList<int> path )
+	public TspResult( double tour, List<int> path )
 	{
 		this.Tour = tour;
 		this.Path = path ?? throw new ArgumentNullException( nameof( path ), "Path cannot be null" );
@@ -16,7 +16,7 @@ public class TspResult//( double tour, IList<int> path ) //: IEquatable<TspResul
 	/// <summary>
 	/// Builds new TspResult from the given map and path
 	/// </summary>	
-	public static TspResult Build( TspMap map, IList<int> path ) => new( map.GetTourLength( path ), path );
+	public static TspResult Build( TspMap map, List<int> path ) => new( map.GetTourLength( path ), path );
 	
 
 	#region Properties ---------------------------------------------------------
@@ -27,7 +27,7 @@ public class TspResult//( double tour, IList<int> path ) //: IEquatable<TspResul
 
 	public bool HasFitness => this.Fitness > 0; //if fitness is 0, then the tour is not valid
 
-	public IList<int> Path { get; set; }// = path;
+	public List<int> Path { get; set; }// = path;
 
 	#endregion
 

@@ -12,7 +12,7 @@ public class NearestNeighbour( TspMap map ) : TspAlgorithmBase( map ), ITspAsync
 	/// </summary>	
 	public async Task<TspResult> RunAsync(CancellationToken token )
 	{
-		var best = new TspResult( double.MaxValue, new int[ base.Cities ] );
+		var best = new TspResult( double.MaxValue, new List<int>( base.Cities ) );
 
 		base.timer.Start();
 

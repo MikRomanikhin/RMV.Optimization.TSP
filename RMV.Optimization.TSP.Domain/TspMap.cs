@@ -64,7 +64,7 @@ public class TspMap
 	/// <summary>
 	/// Calculates tour length for the given path
 	/// </summary>	
-	public double GetTourLength( IList<int> path ) => Enumerable.Range( 0, this.Cities )//.AsParallel()
+	public double GetTourLength( List<int> path ) => Enumerable.Range( 0, this.Cities )//.AsParallel()
 		.Sum( i => i < this.Cities - 1 ? this[ path[ i ], path[ i + 1 ] ].Weight : this[ path[ i ], path[ 0 ] ].Weight );
 
 
@@ -84,7 +84,7 @@ public class TspMap
 	/// <summary>
 	/// Builds random path
 	/// </summary>	
-	IList<int> BuildRandomPath() => [ .. Enumerable.Range( 0, this.Cities ).OrderBy( _ => Random.Shared.Next() ) ];
+	List<int> BuildRandomPath() => [ .. Enumerable.Range( 0, this.Cities ).OrderBy( _ => Random.Shared.Next() ) ];
 
 	/// <summary>
 	/// Builds random population of tours

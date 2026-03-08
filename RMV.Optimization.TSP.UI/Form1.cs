@@ -331,12 +331,12 @@ public partial class Form1 : Form
 	#endregion
 
 
-	#region Learning -----------------------------------------------------------
+	#region Q-Learning ---------------------------------------------------------
 
 	/// <summary>
 	/// Q-Learning
 	/// </summary>	
-	async void QLearningMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.QLearning );
+	async void LearningMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.QLearning );
 
 
 	#endregion
@@ -425,5 +425,6 @@ public partial class Form1 : Form
 		//nnWorker.ReportProgress( ea.Counter * 100 / this.map.Cities );		
 	}
 
-	#endregion	
+	#endregion
+	
 }

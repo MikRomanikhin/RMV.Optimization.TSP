@@ -10,14 +10,24 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 {
 	ScatterSettings settings;
 	List<TspResult> population = [];
-	//readonly TspMap Map = map;
-
+	
+	/// <summary>
+	/// Configures the algorithm 
+	/// </summary>	
 	protected override void Configure()
 	{
 		this.settings = ConfigManager.GetSection<ScatterSettings>( "scatter" );
 		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );
 	}
 
+	/// <summary>
+	/// Initializes the population and returns a clone of the best initial solution found.
+	/// </summary>
+	/// <remarks>
+	/// The returned result is a deep copy of the best initial solution, ensuring that modifications
+	/// to the result do not affect the internal population state.
+	/// </remarks>
+	/// <returns>A clone of the initial solution with the shortest tour from the generated population.</returns>
 	protected override TspResult Initialize()
 	{
 		population = base.InitializePopulation( this.settings.Size );
@@ -25,14 +35,24 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 		return population.MinBy( r => r.Tour )!.Clone();
 	}
 
+	/// <summary>
+	/// Performs a single optimization epoch using the current population and returns the best solution found in this iteration.
+	/// </summary>
+	/// <remarks>
+	/// Meth1od combines solutions from the population, applies local search, and may mutate the population to maintain diversity.
+	/// It is typically called repeatedly as part of an iterative optimization process.
+	/// </remarks>
+	/// <param name="best">The current best solution from the previous epoch. Used as a reference for improvement.</param>
+	/// <returns>A TspResult representing the best solution found during this epoch.</returns>
 	protected override TspResult RunEpoch( TspResult best )
 	{
 		var newSolution = CombineSolutions( population );
 
-		var result = Local2OptSearch( newSolution );
+		var result = ParallelLocalSearch( newSolution );//Local2OptSearch( newSolution );
+
 		result = ReplaceWorstSolution( population, result.Path );
 
-		if( population.Count > 0 && population.Count % settings.Mutate == 0 ) population = SwapDuplicates( population );
+		if( population.Any() && population.Count % settings.Mutate == 0 ) population = SwapDuplicates( population );
 
 		return result;
 	}
@@ -76,11 +96,12 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 		return result;
 	}
 
-	void ChangeDuplicates( Func<IList<int>, IList<int>> func, List<TspResult> duplicates )
+	void ChangeDuplicates( Func<List<int>, List<int>> func, List<TspResult> duplicates )
 	{
 		foreach( var duplicate in duplicates )
 		{
 			duplicate.Path = func( duplicate.Path ); // alter the path of the duplicate solution
+
 			duplicate.Tour = base.map.GetTourLength( duplicate.Path ); // Recalculate tour length after mutation			
 		}
 	}	
@@ -130,7 +151,7 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 
 		int length = parent1.Count;
 
-		for( int i = 0; i < length; i++ )
+		for( int i = 0; i < length; i++ ) // Iterate through both parents simultaneously
 		{
 			int c1 = parent1[ i ];
 			int c2 = parent2[ i ];
@@ -148,7 +169,7 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 	/// <summary>
 	/// The worst solution in the population is replaced if the new solution is better
 	/// </summary>	
-	TspResult ReplaceWorstSolution( List<TspResult> population, IList<int> newSolution )
+	TspResult ReplaceWorstSolution( List<TspResult> population, List<int> newSolution )
 	{
 		ArgumentNullException.ThrowIfNull( population );
 		ArgumentNullException.ThrowIfNull( newSolution );
@@ -157,7 +178,7 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 
 		double newTour = base.map.GetTourLength( newSolution );
 
-		if( newTour < worstSolution.Tour )
+		if( newTour < worstSolution.Tour ) // If the new solution is better than the worst solution, replace it
 		{
 			population.Remove( worstSolution );
 

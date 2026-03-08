@@ -22,22 +22,28 @@ public class ReactiveTabuSearch( TspMap map ) : TspAlgorithmBase( map )
 	int avgSize = 1;
 	int lastChange = 0;
 
+	/// <summary>
+	/// Configures the Tabu Search algorithm by loading settings and initializing the tour.
+	/// </summary>
+	/// <remarks>
+	/// Method is called during initialization to set up the algorithm's configuration. It retrieves the Tabu Search settings from the
+	/// configuration manager and prepares the initial tour state. Override this method to customize the configuration process if necessary.
+	/// </remarks>
 	protected override void Configure()
 	{
-		this.settings = ConfigManager.GetSection<TabuSettings>( "taboo" );
+		this.settings = ConfigManager.GetSection<TabuSettings>( "tabu" );
 		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );
 
 		this.tabuTenure = settings.TabuTenure;
-	}
 
-	protected override TspResult Initialize()
-	{
 		this.current = base.InitializeTour();
-		//population = [ current.Clone() ];			
-
-		return current;
 	}
 
+	/// <summary>
+	/// Executes a single epoch
+	/// </summary>
+	/// <param name="best">The current best solution to use as the starting point for the epoch. Cannot be null.</param>
+	/// <returns>A new TspResult instance representing the best solution found during this epoch.</returns>
 	protected override TspResult RunEpoch( TspResult best )
 	{
 		var candidateEntry = GetCandidateEntry( visitedList, current.Path );
@@ -205,7 +211,7 @@ public class ReactiveTabuSearch( TspMap map ) : TspAlgorithmBase( map )
 	/// <summary>
 	/// Aggregates TspResult and Edges 
 	///</summary>
-	class TabooResult( double tour, IList<int> path, List<TspEdge> edges ) : TspResult( tour, path )
+	class TabooResult( double tour, List<int> path, List<TspEdge> edges ) : TspResult( tour, path )
 	{		
 		public List<TspEdge> Edges { get; set; } = edges;
 
@@ -234,142 +240,10 @@ public class ReactiveTabuSearch( TspMap map ) : TspAlgorithmBase( map )
 		public int Iteration { get; set; } = iteration;
 		public int Visits { get; set; } = 1;
 		public override string ToString() => $"Edges:{string.Join( ",", this.EdgeList )} @ {this.Iteration}";
-	}
-
-	#region obsolete
-	//protected override TspResult RunEpoch( TspResult best )
-	//	{
-	//		// Generate candidate moves (e.g., all 2-opt neighbors)
-	//		var candidates = new List<TspResult>();
-
-	//		for( int i = 0; i < map.Cities - 1; i++ )
-	//		{
-	//			for( int j = i + 1; j < map.Cities; j++ )
-	//			{
-	//				var newPath = TwoOptSwap( best.Path, i, j );
-
-	//				var key = string.Join( ",", newPath );
-
-	//				if( !tabuList.Contains( key ) )
-	//				{
-	//					double newTour = map.GetTourLength( newPath );
-	//					candidates.Add( new TspResult( newTour, newPath ) );
-	//				}
-	//			}
-	//		}
-
-	//		// Select the best candidate
-	//		var next = candidates.OrderBy( r => r.Tour ).FirstOrDefault() ?? best.Clone();
-
-	//		// Update tabu list
-	//		tabuList.Add( string.Join( ",", next.Path ) );
-
-	//		// Remove oldest entry (simple FIFO)
-	//		if( tabuList.Count > tabuTenure ) tabuList.Remove( tabuList.First() );
-
-	//		return next;
-	//	}
-
-
-	/// <summary>
-	/// Taboo Search async wrapper
-	/// </summary>	
-	//public async Task<TspResult> RunAsync(CancellationToken token )
-	//{
-	//	base.timer.Start();
-
-	//	var current = base.map.BuildRandomTour();
-	//	var best = current.Clone();
-
-	//	base.Draw( best.Tour, 0, best.Path );
-
-	//	await Task.Run( () => 
-	//	{
-	//		int count = 0;
-	//		int noChanges = 0;
-
-	//		var tabuList = new List<TabuEntry>();
-	//		var visitedList = new List<VisitedEntry>();
-
-	//		int prohibPeriod = 1;
-	//		int avgSize = 1;
-	//		int lastChange = 0;
-
-	//		while( noChanges++ < settings.Limit )
-	//		{
-	//			var candidateEntry = GetCandidateEntry( visitedList, current.Path );
-
-	//			if( candidateEntry != null ) //update existing entry
-	//			{
-	//				int repetitionInterval = count - candidateEntry.Iteration;
-
-	//				candidateEntry.Iteration = count;
-	//				candidateEntry.Visits++;
-
-	//				if( repetitionInterval < 2 * ( this.Cities - 1 ) )
-	//				{
-	//					avgSize = ( int )Math.Round( 0.1 * ( count - candidateEntry.Iteration ) + 0.9 * avgSize );
-
-	//					prohibPeriod = ( int )( prohibPeriod * settings.IncreaseFactor );
-
-	//					lastChange = count;
-	//				}
-	//			}
-
-	//			if( count - lastChange > avgSize ) //Reduce the prohib period if no changes for a while
-	//			{
-	//				prohibPeriod = Math.Max( ( int )( prohibPeriod * settings.DecreaseFactor ), 1 );
-
-	//				lastChange = count;
-	//			}
-
-	//			List<TabooResult> candidates = BuildCandidates( current );
-
-	//			var (tabu, admis) = SortNeighborhood( candidates, tabuList, count - prohibPeriod );
-
-	//			if( admis.Count < 2 )
-	//			{
-	//				prohibPeriod = this.Cities - 2;
-	//				lastChange = count;
-	//			}
-
-	//			var result = admis.Any() ? admis.First() : tabu.First();
-
-	//			(current, var bestMoveEdges) = result.Split(); 
-
-	//			if( tabu.Any() )
-	//			{
-	//				var first = tabu.First();
-
-	//				if( first < best && first < current ) (current, bestMoveEdges) = first.Split();					
-	//			}
-
-	//			bestMoveEdges.ForEach( edge => UpdateTabu( tabuList, edge, count ) );
-
-	//			var bestCandidate = candidates.First();
-
-	//			if( bestCandidate < best )
-	//			{
-	//				best = new TspResult( bestCandidate.Tour, bestCandidate.Path );
-
-	//				noChanges = 0;
-
-	//				base.Draw( best.Tour, count, best.Path );
-	//			}
-
-	//			if( ++count % settings.Redraw == 0 ) base.Draw( best.Tour, count );
-	//		}
-
-	//		base.Draw( best.Tour, count, best.Path );
-	//	} );
-
-	//	base.timer.Stop();
-
-	//	return best;
-	//}	
-	#endregion
+	}	
 
 }
+
 
 /// <summary>
 /// Configuration Settings
