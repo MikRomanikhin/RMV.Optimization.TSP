@@ -11,12 +11,16 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 	DeSettings settings;
 	List<TspResult> population = [];
 
+	/// <summary>
+	/// Configures the algorithm settings.
+	/// </summary>	
 	protected override void Configure()
 	{
 		this.settings = ConfigManager.GetSection<DeSettings>( "differential" );
 		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );
 	}
 
+	/// Initializes the population with random tours and seeds one top-tier solution
 	protected override TspResult? Initialize()
 	{
 		population = base.InitializePopulation( this.settings.Size );
@@ -27,7 +31,11 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 		return population.MinBy( r => r.Tour )!.Clone();
 	}
 
-
+	/// <summary>
+	/// Runs a single epoch of the algorithm
+	/// </summary>
+	/// <param name="best">The best solution found so far</param>
+	/// <returns>The best solution found in this epoch</returns>
 	protected override TspResult RunEpoch( TspResult best )
 	{
 		List<TspResult> newPopulation = new( this.settings.Size );

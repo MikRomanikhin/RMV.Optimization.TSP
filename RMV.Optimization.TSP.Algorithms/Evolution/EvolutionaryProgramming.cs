@@ -12,12 +12,20 @@ public class EvolutionaryProgramming( TspMap map ) : TspAlgorithmBase( map )
 	EpSettings settings;
 	List<TspResult> population = [];
 
+	/// <summary>
+	/// Configures the algorithm settings.
+	/// </summary>	
 	protected override void Configure()
 	{
 		this.settings = ConfigManager.GetSection<EpSettings>( "ep" );
 		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );
 	}
 
+	/// <summary>
+	/// Initializes the population and returns the best initial solution found.
+	/// </summary>
+	/// <remarks>Method selects the best result from the newly initialized population based on tour length.</remarks>
+	/// <returns>TspResult representing the initial solution with the shortest tour in the population.</returns>
 	protected override TspResult Initialize()
 	{
 		this.population = base.InitializePopulation( this.settings.Size );
@@ -25,6 +33,11 @@ public class EvolutionaryProgramming( TspMap map ) : TspAlgorithmBase( map )
 		return this.population.MinBy( r => r.Tour );
 	}
 
+	/// <summary>
+	/// Runs a single epoch of the algorithm
+	/// </summary>
+	/// <param name="best">The best solution found so far</param>
+	/// <returns>The best solution found in this epoch</returns>
 	protected override TspResult RunEpoch( TspResult best )
 	{
 		population = Evolve( population, settings.Take );
