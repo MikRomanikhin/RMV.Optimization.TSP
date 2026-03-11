@@ -17,7 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RMV.Optimization.TSP.Ants\RMV.Optimization.TSP.Ants.csproj" />
-    <ProjectReference Include="..\RMV.Optimization.TSP.Common\RMV.Optimization.TSP.Common\RMV.Optimization.TSP.Common.csproj" />
+    <ProjectReference Include="..\RMV.Optimization.TSP.Common\RMV.Optimization.TSP.Common.csproj" />
     <ProjectReference Include="..\RMV.Optimization.TSP.Domain\RMV.Optimization.TSP.Domain.csproj" />
   </ItemGroup>
 

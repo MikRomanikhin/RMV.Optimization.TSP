@@ -8,16 +8,37 @@ namespace RMV.Optimization.TSP.Common;
 /// </summary>
 public static class ConfigManager
 {
-	static ConfigManager()
+
+	#region Initialise ---------------------------------------------------------
+
+	/// <summary>
+	/// The root of the configuration
+	/// </summary>
+	static readonly IConfigurationRoot root = GetConfigurationRoot( AppDomain.CurrentDomain.BaseDirectory );
+
+	/// <summary>
+	/// Gets the configuration root
+	/// </summary>
+	/// <param name="path">The base path for the configuration files</param>
+	/// <returns>The configuration root</returns>
+	static IConfigurationRoot GetConfigurationRoot( string path )
 	{
-		root = GetConfigurationRoot( AppDomain.CurrentDomain.BaseDirectory );
+		var environment = Environment.GetEnvironmentVariable( "ASPNETCORE_ENVIRONMENT" ) ?? "Production";
+
+		return new ConfigurationBuilder().SetBasePath( path )
+			.AddJsonFile( "appSettings.json", optional: true, reloadOnChange: true )
+			// support environment-specific overrides (e.g., appSettings.Development.json)
+			.AddJsonFile( $"appSettings.{environment}.json", optional: true, reloadOnChange: true )
+			.Build();
 	}
 
-	static readonly IConfigurationRoot root;
+	#endregion
 
-	static IConfigurationRoot GetConfigurationRoot( string path ) =>
-		new ConfigurationBuilder().SetBasePath( path ).AddJsonFile( "appSettings.json" ).Build();
-	
+
+	/// <summary>
+	/// Binds the root of the configuration directly to a type
+	/// </summary>
+	public static T? GetRoot<T>() => root.Get<T>();
 
 	/// <summary>
 	/// Retrieves custom configuration section by type or name 
