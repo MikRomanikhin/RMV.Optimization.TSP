@@ -1,4 +1,5 @@
 RMV.Optimization.TSP
+
 A compact collection of discrete optimization algorithms for the Traveling Salesman Problem (TSP), implemented in C#.
 The solution brings together several heuristic and metaheuristic approaches in a clean, modular structure. 
 
