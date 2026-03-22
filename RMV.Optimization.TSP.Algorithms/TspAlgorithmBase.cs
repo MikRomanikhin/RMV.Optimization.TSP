@@ -92,10 +92,17 @@ public abstract class TspAlgorithmBase
 		return best;
 	}
 
-	protected virtual TspResult? Initialize() => this.map.BuildRandomTour();
-	protected TspResult? InitializeTour() => this.map.BuildRandomTour();
+	protected virtual TspResult Initialize() => this.map.BuildRandomTour();
+	protected TspResult InitializeTour() => this.map.BuildRandomTour();
 	protected List<TspResult> InitializePopulation( int size ) => [ .. Enumerable.Range( 0, size ).Select( _ => InitializeTour() ) ];
-	protected virtual TspResult? RunEpoch( TspResult best ) { return default; }
+
+
+	/// <summary>
+	/// Executes a single epoch of the algorithm, generating a new TSP result based on the current best solution.
+	/// </summary>
+	/// <param name="best">The current best solution from the previous epoch.</param>
+	/// <returns>A TspResult representing the best solution found during this epoch.</returns>
+	protected virtual TspResult RunEpoch( TspResult best ) { return new TspResult( double.MaxValue, [] ); }
 
 	#endregion
 
@@ -107,7 +114,7 @@ public abstract class TspAlgorithmBase
 
 	protected void Draw( double tour, int count, IEnumerable<int>? path = null )
 	{
-		string time = $" {timer.Elapsed.Minutes}m:{timer.Elapsed.Seconds}c";//:{timer.Elapsed.Milliseconds}";
+		string time = $"{timer.Elapsed:hh\\:mm\\:ss}";//:{timer.Elapsed.Milliseconds}";
 
 		TriggerDraw( new DrawEventArgs( tour, count, time, path ) );
 	}
@@ -115,13 +122,13 @@ public abstract class TspAlgorithmBase
 	#endregion
 
 
-	#region Local Search Selection ---------------------------------------------
+		#region Local Search Selection ---------------------------------------------
 
-	/// <summary>
-	/// Selects a local search algorithm to apply in parallel
-	/// </summary>
-	/// <param name="path">The path to optimize</param>
-	/// <returns>The optimized TSP result</returns>	
+		/// <summary>
+		/// Selects a local search algorithm to apply in parallel
+		/// </summary>
+		/// <param name="path">The path to optimize</param>
+		/// <returns>The optimized TSP result</returns>	
 	protected TspResult ParallelLocalSearch( List<int> path )
 	{		
 		return Random.Shared.Next( 7 ) switch 

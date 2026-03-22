@@ -112,41 +112,8 @@ public static class Serialization
 
       return await JsonSerializer.DeserializeAsync<T>( stream, options );
    }
-
-
-   /// <summary>
-   /// Is this a valid JSON string
-   /// </summary>
-   /// <param name="target">target string</param>
-   /// <returns>success indicator</returns>
-   //public static bool IsJson( this string target )
-   //{
-   //   if( target.IsNullOrWhitespace() ) return false;
-
-   //   target = target.Trim();
-
-   //   if( ( target.StartsWith( "{" ) && target.EndsWith( "}" ) ) || //For object
-   //       ( target.StartsWith( "[" ) && target.EndsWith( "]" ) ) ) //For array
-   //   {
-   //      try
-   //      {
-   //         using var doc = JsonDocument.Parse( target );
-   //         return true;
-   //      }
-   //      catch//( JsonException ex ) 
-   //      {
-   //         //Console.WriteLine( ex.ToString() );
-   //         return false;
-   //      }
-   //   }
-
-   //   return false;
-   //}
-
-
-   public static StringContent ToStringContent<T>( this T target ) => new( target.ToJson(), Encoding.UTF8, "application/json" );
-
-
+  
+  
    static JsonSerializerOptions DefaultJsonSerializerOptions
    {
       get
@@ -165,7 +132,16 @@ public static class Serialization
       }
    }
 
-   #endregion
+	#endregion
 
+	/// <summary>
+	/// Coverts string collection to string with separators
+	/// </summary> 
+	/// <summary>
+	/// Converts a collection to a string with the specified separator.
+	/// Returns null if the collection is null or empty.
+	/// </summary>      
+	public static string? Join<T>( this IEnumerable<T>? target, string separator = ", " ) =>
+		target is not null && target.Any() ? string.Join( separator, target ) : null;
 }
 

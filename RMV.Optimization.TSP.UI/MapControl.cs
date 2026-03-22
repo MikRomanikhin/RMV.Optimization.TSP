@@ -39,9 +39,12 @@ public class MapControl : Panel
       get => map;
       set
       {
-         map = value;
-         Invalidate();
-      }
+			if( !ReferenceEquals( map, value ) )
+			{
+				map = value;
+				Invalidate();
+			}
+		}
    }
    int[,] map;
 
@@ -54,8 +57,11 @@ public class MapControl : Panel
       get => path;
       set
       {
-         path = value;
-         Invalidate();
+         if( !ReferenceEquals( path, value ) )
+         {
+            path = value;
+            Invalidate();
+         }
       }
    }
    ushort[] path;
@@ -69,8 +75,11 @@ public class MapControl : Panel
       get => opt;
       set
       {
-         opt = value;
-         Invalidate();
+         if( !ReferenceEquals( opt, value ) )
+         {
+            opt = value;
+            Invalidate();
+         }
       }
    }
    ushort[] opt;
@@ -157,7 +166,7 @@ public class MapControl : Panel
             int y = clientHeight - MARGIN - ( int )( ( map[ i, 1 ] - rangeY.Min ) * yFactor );
 
             g.FillRectangle( brush, x - 2, y - 2, 5, 5 );
-            g.DrawString( i.ToString(), Font, Brushes.Black, x + 5, y - 2 ); // draw index
+            //g.DrawString( i.ToString(), Font, Brushes.Black, x + 5, y - 2 ); // draw index
 			}
 
          brush.Dispose();

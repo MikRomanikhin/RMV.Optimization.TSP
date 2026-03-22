@@ -63,6 +63,7 @@
 			MinMaxAntMenuItem = new ToolStripMenuItem();
 			PsoMenuItem = new ToolStripMenuItem();
 			LearningMenuItem = new ToolStripMenuItem();
+			BranchAndBoundMenuItem = new ToolStripMenuItem();
 			statusStrip = new StatusStrip();
 			StatusLabel = new ToolStripStatusLabel();
 			tableLayoutPanel1 = new TableLayoutPanel();
@@ -127,7 +128,7 @@
 			// 
 			// computeToolStripMenuItem
 			// 
-			computeToolStripMenuItem.DropDownItems.AddRange( new ToolStripItem[] { NearestNeighborMenuItem, AnnealingMenuItem, EvolutionMenuItem, stochasticToolStripMenuItem, antsToolStripMenuItem, LearningMenuItem } );
+			computeToolStripMenuItem.DropDownItems.AddRange( new ToolStripItem[] { NearestNeighborMenuItem, AnnealingMenuItem, EvolutionMenuItem, stochasticToolStripMenuItem, antsToolStripMenuItem, LearningMenuItem, BranchAndBoundMenuItem } );
 			computeToolStripMenuItem.Name = "computeToolStripMenuItem";
 			computeToolStripMenuItem.Size = new Size( 69, 20 );
 			computeToolStripMenuItem.Text = "Compute";
@@ -136,7 +137,7 @@
 			// 
 			NearestNeighborMenuItem.DropDownItems.AddRange( new ToolStripItem[] { NearestNeighbourMenuItem, ShortestEdgeMenuItem, GreedyCombinedMenuItem, beamSearchMenuItem, PilotMenuItem } );
 			NearestNeighborMenuItem.Name = "NearestNeighborMenuItem";
-			NearestNeighborMenuItem.Size = new Size( 180, 22 );
+			NearestNeighborMenuItem.Size = new Size( 172, 22 );
 			NearestNeighborMenuItem.Text = "Greedy";
 			NearestNeighborMenuItem.Click +=  NearestNeighbourMenuItem_Click ;
 			// 
@@ -178,7 +179,7 @@
 			// AnnealingMenuItem
 			// 
 			AnnealingMenuItem.Name = "AnnealingMenuItem";
-			AnnealingMenuItem.Size = new Size( 180, 22 );
+			AnnealingMenuItem.Size = new Size( 172, 22 );
 			AnnealingMenuItem.Text = "Annealing";
 			AnnealingMenuItem.Click +=  Annealing_Click ;
 			// 
@@ -186,7 +187,7 @@
 			// 
 			EvolutionMenuItem.DropDownItems.AddRange( new ToolStripItem[] { GeneticAlgorithmMenuItem, EvolutionStrategiesMenuItem, DifferentialEvolutionMenuItem, EvolutionaryProgrammingMenuItem, LearningClassifierMenuItem } );
 			EvolutionMenuItem.Name = "EvolutionMenuItem";
-			EvolutionMenuItem.Size = new Size( 180, 22 );
+			EvolutionMenuItem.Size = new Size( 172, 22 );
 			EvolutionMenuItem.Text = "Evolution";
 			// 
 			// GeneticAlgorithmMenuItem
@@ -228,7 +229,7 @@
 			// 
 			stochasticToolStripMenuItem.DropDownItems.AddRange( new ToolStripItem[] { iteratedLocalMenuItem, guidedLocalMenuItem, variableNeighborhoodpMenuItem, RandomizedAdaptiveMenuItem, ScatterSearchMenuItem, TabooSearchMenuItem, RandomSearchMenuItem } );
 			stochasticToolStripMenuItem.Name = "stochasticToolStripMenuItem";
-			stochasticToolStripMenuItem.Size = new Size( 180, 22 );
+			stochasticToolStripMenuItem.Size = new Size( 172, 22 );
 			stochasticToolStripMenuItem.Text = "Stochastic";
 			// 
 			// iteratedLocalMenuItem
@@ -284,7 +285,7 @@
 			// 
 			antsToolStripMenuItem.DropDownItems.AddRange( new ToolStripItem[] { AntColonyMenuItem, AntSystemMenuItem, MinMaxAntMenuItem, PsoMenuItem } );
 			antsToolStripMenuItem.Name = "antsToolStripMenuItem";
-			antsToolStripMenuItem.Size = new Size( 180, 22 );
+			antsToolStripMenuItem.Size = new Size( 172, 22 );
 			antsToolStripMenuItem.Text = "Swarm";
 			// 
 			// AntColonyMenuItem
@@ -318,9 +319,16 @@
 			// LearningMenuItem
 			// 
 			LearningMenuItem.Name = "LearningMenuItem";
-			LearningMenuItem.Size = new Size( 180, 22 );
+			LearningMenuItem.Size = new Size( 172, 22 );
 			LearningMenuItem.Text = "Q-Learning";
 			LearningMenuItem.Click +=  LearningMenuItem_Click ;
+			// 
+			// BranchAndBoundMenuItem
+			// 
+			BranchAndBoundMenuItem.Name = "BranchAndBoundMenuItem";
+			BranchAndBoundMenuItem.Size = new Size( 172, 22 );
+			BranchAndBoundMenuItem.Text = "Branch and Bound";
+			BranchAndBoundMenuItem.Click +=  BranchAndBoundMenuItem_Click ;
 			// 
 			// statusStrip
 			// 
@@ -371,10 +379,11 @@
 			tableLayoutPanel2.Location = new Point( 1021, 10 );
 			tableLayoutPanel2.Margin = new Padding( 10 );
 			tableLayoutPanel2.Name = "tableLayoutPanel2";
-			tableLayoutPanel2.RowCount = 2;
+			tableLayoutPanel2.RowCount = 3;
 			tableLayoutPanel2.RowStyles.Add( new RowStyle( SizeType.Percent, 50F ) );
 			tableLayoutPanel2.RowStyles.Add( new RowStyle( SizeType.Percent, 50F ) );
-			tableLayoutPanel2.Size = new Size( 160, 100 );
+			tableLayoutPanel2.RowStyles.Add( new RowStyle( SizeType.Absolute, 20F ) );
+			tableLayoutPanel2.Size = new Size( 160, 108 );
 			tableLayoutPanel2.TabIndex = 1;
 			// 
 			// buttonPause
@@ -385,26 +394,28 @@
 			buttonPause.Location = new Point( 10, 10 );
 			buttonPause.Margin = new Padding( 10 );
 			buttonPause.Name = "buttonPause";
-			buttonPause.Size = new Size( 140, 30 );
+			buttonPause.Size = new Size( 140, 24 );
 			buttonPause.TabIndex = 0;
 			buttonPause.Text = "Pause";
 			buttonPause.UseVisualStyleBackColor = true;
+			buttonPause.Visible = false;
 			buttonPause.Click +=  buttonPause_Click ;
 			// 
 			// buttonStop
 			// 
 			buttonStop.Dock = DockStyle.Fill;
 			buttonStop.Font = new Font( "Segoe UI", 9F, FontStyle.Bold );
-			buttonStop.Location = new Point( 10, 60 );
+			buttonStop.Location = new Point( 10, 54 );
 			buttonStop.Margin = new Padding( 10 );
 			buttonStop.Name = "buttonStop";
-			buttonStop.Size = new Size( 140, 30 );
+			buttonStop.Size = new Size( 140, 24 );
 			buttonStop.TabIndex = 1;
 			buttonStop.Text = "Stop";
 			buttonStop.UseVisualStyleBackColor = true;
+			buttonStop.Visible = false;
 			buttonStop.Click +=  buttonStop_Click ;
 			// 
-			// Form1
+			// TspUI
 			// 
 			AutoScaleDimensions = new SizeF( 7F, 15F );
 			AutoScaleMode = AutoScaleMode.Font;
@@ -413,7 +424,7 @@
 			Controls.Add( statusStrip );
 			Controls.Add( menuStrip1 );
 			MainMenuStrip = menuStrip1;
-			Name = "Form1";
+			Name = "TspUI";
 			StartPosition = FormStartPosition.CenterScreen;
 			Text = "TSP Algorithms Demo";
 			menuStrip1.ResumeLayout( false );
@@ -473,5 +484,6 @@
 		private Button buttonPause;
 		private Button buttonStop;
 		private ToolStripMenuItem RandomSearchMenuItem;
+		private ToolStripMenuItem BranchAndBoundMenuItem;
 	}
 }

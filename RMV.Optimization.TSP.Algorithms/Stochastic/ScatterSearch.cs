@@ -39,7 +39,7 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 	/// Performs a single optimization epoch using the current population and returns the best solution found in this iteration.
 	/// </summary>
 	/// <remarks>
-	/// Meth1od combines solutions from the population, applies local search, and may mutate the population to maintain diversity.
+	/// Method combines solutions from the population, applies local search, and may mutate the population to maintain diversity.
 	/// It is typically called repeatedly as part of an iterative optimization process.
 	/// </remarks>
 	/// <param name="best">The current best solution from the previous epoch. Used as a reference for improvement.</param>
@@ -70,32 +70,14 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 		return [ .. unique.Concat( duplicates ).OrderBy( u => u.Tour ) ];
 	}
 
-	///<summary
-	/// Mutate duplicates in the population by random swapping of cities in the path
-	///</summary>
-	List<TspResult> MutateDuplicates( List<TspResult> population )
-	{
-		var (unique, duplicates) = Split( population );
-
-		ChangeDuplicates( RandomSwap, duplicates );
-
-		return [ .. unique.Concat( duplicates ).OrderBy( u => u.Tour ) ];
-	}
 
 	/// <summary>
-	/// Replace duplicates in the population by random tour
-	///</summary>
-	List<TspResult> CleanDuplicates( List<TspResult> population )
-	{
-		int count = population.Count;
-
-		var result = population.Distinct().OrderBy( c => c.Tour ).ToList();
-
-		while( result.Count < count ) result.Add( base.map.BuildRandomTour() );
-
-		return result;
-	}
-
+	/// Applies a given mutation function to the paths of duplicate solutions in the population. 
+	/// Method iterates through each duplicate solution and modifies its path using the provided function, 
+	/// then recalculates the tour length for each modified solution to ensure that the population remains consistent with the new paths.
+	/// </summary>
+	/// <param name="func">The mutation function to apply to each duplicate solution's path.</param>
+	/// <param name="duplicates">The list of duplicate solutions to be modified.</param>
 	void ChangeDuplicates( Func<List<int>, List<int>> func, List<TspResult> duplicates )
 	{
 		foreach( var duplicate in duplicates )

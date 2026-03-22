@@ -27,7 +27,7 @@ class TspController( TspUI form )
 	/// The created algorithm instance is associated with the current map. 
 	/// Subsequent calls with different algorithm types will replace the previously created algorithm instance.
 	/// </remarks>
-	/// <param name="algorithm">The type of Traveling Salesman Problem (TSP) algorithm to instantiate</param>
+	/// <param name="algorithm">The type of TSP algorithm to instantiate</param>
 	/// <returns>A new instance of a TSP algorithm corresponding to the specified algorithm type.</returns>	
 	public TspAlgorithmBase BuildAlgorithm( TspAlgorithm algorithm )
 	{
@@ -49,6 +49,7 @@ class TspController( TspUI form )
 			TspAlgorithm.Scatter => new ScatterSearch( this.Map ),
 			TspAlgorithm.Taboo => new ReactiveTabuSearch( this.Map ),
 			
+			TspAlgorithm.BranchAndBound => new BranchAndBound( this.Map ),
 			TspAlgorithm.Annealing => new SimulatedAnnealing( this.Map ),
 			TspAlgorithm.Genetic => new GeneticAlgorithm( this.Map ),
 			TspAlgorithm.ES => new EvolutionStrategies( this.Map ),

@@ -28,7 +28,7 @@ public partial class TspUI : Form
 	#region Read TSP file ------------------------------------------------------
 
 	/// <summary>
-	/// Create map from file
+	/// Create and display map from file
 	/// </summary>		
 	void GetMapMenuItem_Click( object sender, EventArgs e )
 	{
@@ -160,6 +160,16 @@ public partial class TspUI : Form
 	#endregion
 
 
+	#region Branch and Bound ---------------------------------------------------
+
+	/// <summary>	
+	/// Branch and Bound
+	/// </summary>
+	async void BranchAndBoundMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.BranchAndBound );
+
+	#endregion
+
+
 	#region Simulated annealing ------------------------------------------------
 
 	/// <summary>
@@ -205,7 +215,7 @@ public partial class TspUI : Form
 	/// <summary>
 	/// Taboo Search
 	/// </summary>	
-	async void TabooSearchMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.Taboo );		
+	async void TabooSearchMenuItem_Click( object sender, EventArgs e ) => await Execute( TspAlgorithm.Taboo );
 
 	#endregion
 
@@ -344,7 +354,7 @@ public partial class TspUI : Form
 	{
 		this.StatusLabel.Text = text;
 
-		Task.Run( () => this.statusStrip.Update() );
+		Task.Run( this.statusStrip.Update );
 	}
 
 	void HandleDrawEvent( object sender, DrawEventArgs ea )
