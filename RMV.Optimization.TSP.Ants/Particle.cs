@@ -196,4 +196,6 @@ public class PsoSettings : TspConfigurationBase
 	public double Cognitive { get; set; }
 
 	public double Social { get; set; }
+
+	public int Stagnation { get; set; }
 }

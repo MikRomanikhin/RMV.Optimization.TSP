@@ -15,7 +15,7 @@ public interface IRandomSequence
 	{
 		if( count > ( max - min + 1 ) ) throw new ArgumentException( "Length exceeds the range" );
 
-		return Enumerable.Range( min, max - min ).OrderBy( _ => Random.Shared.Next() ).Take( count ).OrderBy( x => x ).ToList();
+		return [ .. Enumerable.Range( min, max - min ).OrderBy( _ => Random.Shared.Next() ).Take( count ).OrderBy( x => x ) ];
 	}
 
 	/// <summary>

@@ -10,6 +10,7 @@ public class SimulatedAnnealing( TspMap map ) : TspAlgorithmBase( map )//, ITspA
 {
 	AnnealingSettings settings;
 	TspResult current;
+	double temperature; // Local temperature state instead of modifying settings (thread-safety, reset capability)
 
 	/// <summary>
 	/// Configures the annealing algorithm by loading settings from the configuration section and initializing the base
@@ -21,19 +22,22 @@ public class SimulatedAnnealing( TspMap map ) : TspAlgorithmBase( map )//, ITspA
 	protected override void Configure()
 	{
 		this.settings = ConfigManager.GetSection<AnnealingSettings>("annealing");		
-		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );			
+		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );		
 	}
 
 	/// <summary>
-	/// Initializes the algorithm by constructing an initial tour using the nearest neighbor heuristic.
+	/// Initializes the algorithm by constructing an initial tour using the nearest neighbor heuristic and resetting temperature.
 	/// </summary>
 	/// <remarks>The returned tour represents the starting solution for the algorithm. Subsequent optimization steps
 	/// may modify this tour. The method uses the nearest neighbor approach to build the initial tour, which may affect the
-	/// quality of the starting solution.</remarks>
+	/// quality of the starting solution. Temperature is reset here for each new algorithm run.</remarks>
 	/// <returns>A clone of the initial tour as a <see cref="TspResult"/> instance, or "null" if initialization fails.</returns>
 	protected override TspResult? Initialize()
 	{
-		current = base.BuildNearestTour();//base.BuildRandomTour();( 0 );
+		current = base.BuildNearestTour();
+
+		// Reset temperature for new algorithm run (critical for reusability)
+		this.temperature = this.settings.Temperature;
 
 		return current.Clone();
 	}
@@ -59,21 +63,24 @@ public class SimulatedAnnealing( TspMap map ) : TspAlgorithmBase( map )//, ITspA
 	/// Performs a single SA step on the provided TSP result, potentially updating the tour and temperature based on acceptance criteria.
 	/// </summary>
 	/// <remarks>This method applies the simulated annealing acceptance rule to determine whether a candidate swap should be accepted, 
-	/// and updates the temperature according to the configured decay rate. The input result is modified in place.</remarks>
+	/// and updates the temperature according to the configured decay rate. The input result is modified in place. Uses local temperature
+	/// state for thread-safety and consistency across multiple algorithm runs.</remarks>
 	/// <param name="result">The current result of the traveling salesman problem, including the tour path and cost. 
 	/// This object will be updated if a swap is accepted.</param>
 	void GetAnnealing( TspResult result )
-	{		
+	{			
 		(Action accept, double delta) = base.Swap( result.Path );
 
-		if( delta < 0 || Math.Exp( -delta / settings.Temperature ) > Random.Shared.NextDouble() )
+		// Metropolis criterion: accept improving moves always, accept worse moves with temperature-dependent probability
+		if( delta < 0 || Math.Exp( -delta / this.temperature ) > Random.Shared.NextDouble() )
 		{
 			result.Tour += delta;
 			accept!();
 		}
 
-		settings.Temperature *= settings.Decay;
-	}	
+		// Decay temperature for next iteration (geometric cooling schedule)
+		this.temperature *= this.settings.Decay;
+	}
 }
 
 /// <summary>

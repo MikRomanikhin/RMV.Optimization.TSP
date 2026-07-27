@@ -78,13 +78,8 @@ public class ParticleSwarm( TspMap map ) : TspAlgorithmBase( map )
 			}
 		}
 
-		if( !newBestFound )
-		{									
-			if( ++this.stagnation > 0 && this.stagnation % 100 == 0 )
-			{
-				RestartWorst(); // Restart worst particles when stagnating to inject diversity
-			}
-		}
+		// Restart worst particles when stagnating to inject diversity
+		if( !newBestFound && ++this.stagnation > 0 && this.stagnation % settings.Stagnation == 0 ) this.swarm = RestartWorst(); 				
 
 		return current;
 	}
@@ -98,8 +93,10 @@ public class ParticleSwarm( TspMap map ) : TspAlgorithmBase( map )
 	/// swarm contains a diverse set of solutions, which can improve optimization performance.
 	/// </remarks>
 	/// <param name="nearest">The nearest-neighbour solution to use for initializing the first particle in the swarm. Cannot be null.</param>
-	/// <returns>A list of particles representing the initialized swarm. The first particle is seeded with the nearest-neighbour
-	/// solution; the remaining particles are initialized with random tours.</returns>
+	/// <returns>
+	/// A list of particles representing the initialized swarm. The first particle is seeded with the 
+	/// nearest-neighbour solution; the remaining particles are initialized with random tours.
+	/// </returns>
 	List<Particle> InitializeSwarm( TspResult nearest )
 	{
 		List<Particle> particles = [];
@@ -121,18 +118,23 @@ public class ParticleSwarm( TspMap map ) : TspAlgorithmBase( map )
 	/// <summary>
 	/// Replace the worst half of particles with fresh random tours to escape local optima
 	/// </summary>
-	void RestartWorst()
-	{
-		var sorted = this.swarm.OrderBy( p => p.BestCost ).ToList();
+	List<Particle> RestartWorst()
+	{		
+		// Identify worst half by BestCost (highest cost = worst performance)
+		var worstParticles = this.swarm.OrderByDescending( p => p.BestCost ).Take( this.swarm.Count / 2 ).Select( p => p.ID ).ToHashSet();
 
-		int half = sorted.Count / 2;
-
-		for( int i = half; i < sorted.Count; i++ )
+		
+		for( int i = 0; i < this.swarm.Count; i++ ) // Restart worst particles in-place, maintaining ID order
 		{
-			var tour = base.map.BuildRandomTour();
+			if( worstParticles.Contains( this.swarm[ i ].ID ) )
+			{
+				var tour = base.map.BuildRandomTour();
 
-			// Fully reset memory! Do not keep the old stagnated personal best!
-			sorted[ i ] = new Particle( sorted[ i ].ID, tour.Path, tour.Tour );
+				// Fully reset memory! Do not keep the old stagnated personal best!
+				this.swarm[ i ] = new Particle( this.swarm[ i ].ID, tour.Path, tour.Tour );
+			}
 		}
+
+		return this.swarm; // Return the swarm with worst particles replaced, maintaining order
 	}
 }

@@ -31,66 +31,42 @@ public class IteratedLocalSearch( TspMap map ) : TspAlgorithmBase( map )
 	}
 
 	/// <summary>
-	/// Perturbation using double bridge method
+	/// Perturbation using double bridge method.
+	/// Recombines path segments as [0..a) + [c..d) + [b..c) + [a..b) + [d..n)
 	/// </summary>
-	static List<int> Perturbate( IList<int> path )
+	static List<int> Perturbate( List<int> path )
 	{
 		int n = path.Count;
 		if( n < 8 ) return [ .. path ]; // Double bridge needs at least 8 cities to be meaningful
 
-		var cuts = IRandomSequence.GetUniqueInts( 4, 1, n - 1 ); // Select 4 unique, sorted cut points in [1, n-1)	
+		var cuts = IRandomSequence.GetUniqueInts( 4, 1, n - 1 );
+
+		// Sort 4 cut points inline (faster than LINQ for small sets)
 		int a = cuts[ 0 ], b = cuts[ 1 ], c = cuts[ 2 ], d = cuts[ 3 ];
+
+		// Simple insertion sort for 4 elements
+		if( a > b ) (a, b) = (b, a);
+		if( c > d ) (c, d) = (d, c);
+		if( b > c ) (b, c) = (c, b);
+		if( a > b ) (a, b) = (b, a);
+		if( c > d ) (c, d) = (d, c);
 
 		var result = new List<int>( n );
 
-		// Fast path for List<int> utilizing memory block copying
-		if( path is List<int> list )
-		{
-			CollectionsMarshal.SetCount( result, n );
-			Span<int> dst = CollectionsMarshal.AsSpan( result );
-			ReadOnlySpan<int> src = CollectionsMarshal.AsSpan( list );
+		// Pre-allocate and use CollectionsMarshal for zero-copy segment operations
+		CollectionsMarshal.SetCount( result, n );
+		Span<int> dst = CollectionsMarshal.AsSpan( result );
+		ReadOnlySpan<int> src = CollectionsMarshal.AsSpan( path );
 
-			src[ ..a ].CopyTo( dst );
-			src[ c..d ].CopyTo( dst[ a.. ] );
-			src[ b..c ].CopyTo( dst[ ( a + d - c ).. ] );
-			src[ a..b ].CopyTo( dst[ ( a + d - b ).. ] );
-			src[ d.. ].CopyTo( dst[ d.. ] );
-		}
-		else
-		{
-			// Fallback for generic IList
-			for( int i = 0; i < a; i++ ) result.Add( path[ i ] );
-			for( int i = c; i < d; i++ ) result.Add( path[ i ] );
-			for( int i = b; i < c; i++ ) result.Add( path[ i ] );
-			for( int i = a; i < b; i++ ) result.Add( path[ i ] );
-			for( int i = d; i < n; i++ ) result.Add( path[ i ] );
-		}
+		// Double bridge: [0..a) + [c..d) + [b..c) + [a..b) + [d..n)
+		src[ ..a ].CopyTo( dst );
+		src[ c..d ].CopyTo( dst[ a.. ] );
+		src[ b..c ].CopyTo( dst[ ( a + d - c ).. ] );
+		src[ a..b ].CopyTo( dst[ ( a + d - b ).. ] );
+		src[ d.. ].CopyTo( dst[ d.. ] );
 
 		return result;
 	}
-	//static List<int> Perturbate( IList<int> path )
-	//{
-	//	int n = path.Count;
-	//	if( n < 8 ) return [ .. path ];// Double bridge needs at least 8 cities to be meaningful
-
-	//	var cuts = IRandomSequence.GetUniqueInts( 4, 1, n - 1 ); // Select 4 unique, sorted cut points in [1, n-1)	
-	//	int a = cuts[ 0 ], b = cuts[ 1 ], c = cuts[ 2 ], d = cuts[ 3 ];
-
-	//	// Double bridge recombination: [0..a) + [c..d) + [b..c) + [a..b) + [d..n)
-	//	var result = new List<int>( n );
-	//	//result.AddRange( path.Take( a ) ); // [0..a)
-	//	//result.AddRange( path.Skip( c ).Take( d - c ) );
-	//	//result.AddRange( path.Skip( b ).Take( c - b ) );
-	//	//result.AddRange( path.Skip( a ).Take( b - a ) );
-	//	//result.AddRange( path.Skip( d ) );
-	//	for( int i = 0; i < a; i++ ) result.Add( path[ i ] );
-	//	for( int i = c; i < d; i++ ) result.Add( path[ i ] );
-	//	for( int i = b; i < c; i++ ) result.Add( path[ i ] );
-	//	for( int i = a; i < b; i++ ) result.Add( path[ i ] );
-	//	for( int i = d; i < n; i++ ) result.Add( path[ i ] );
-
-	//	return result;
-	//}	
 }
 
 /// <summary>

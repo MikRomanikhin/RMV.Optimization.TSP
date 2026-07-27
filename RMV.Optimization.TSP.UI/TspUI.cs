@@ -342,7 +342,7 @@ public partial class TspUI : Form
 
 		this.currentAlgorithm = this.controller.BuildAlgorithm( algorithmType );
 
-		await controller.Run( algorithmType, token ?? cts.Token );
+		await controller.Run( token ?? cts.Token );
 
 		TspController.OnDraw -= HandleDrawEvent;
 	}

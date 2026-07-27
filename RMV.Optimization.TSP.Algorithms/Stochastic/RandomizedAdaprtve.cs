@@ -27,9 +27,9 @@ public class RandomizedAdaptiveSearch( TspMap map ) : TspAlgorithmBase( map )
 	/// <returns>A new solution representing the result of the optimization epoch</returns>
 	protected override TspResult RunEpoch( TspResult best )
 	{
-		var path = BuildGreedySolution();// best.Path );
+		var path = BuildGreedySolution();
 
-		return ParallelLocalSearch( path );  //var result = OrOptSwap( path );
+		return ParallelLocalSearch( path ); 
 	}
 
 	/// <summary>
@@ -52,15 +52,15 @@ public class RandomizedAdaptiveSearch( TspMap map ) : TspAlgorithmBase( map )
 		for( int i = 1; i < totalCities; i++ )	available.Add( i );
 
 		// Rent a buffer/array for candidate distances to avoid allocations in the while loop
-		Span<(int City, double Distance)> candidates = new (int, double)[ totalCities ];
+		Span<(int Index, int City, double Distance)> candidates = new (int, int, double)[ totalCities ];
 		int currentCity = 0;
 
 		while( available.Any() )
 		{
-			// 1. Populate current distances without LINQ allocations
+			// 1. Populate current distances without LINQ allocations, tracking original indices
 			for( int i = 0; i < available.Count; i++ )
 			{
-				candidates[ i ] = (available[ i ], base.map[ currentCity, available[ i ] ].Weight);
+				candidates[ i ] = (i, available[ i ], base.map[ currentCity, available[ i ] ].Weight);
 			}
 
 			// 2. Slice the span to only the active elements
@@ -73,10 +73,12 @@ public class RandomizedAdaptiveSearch( TspMap map ) : TspAlgorithmBase( map )
 			int takeCount = Math.Min( settings.Take, activeCandidates.Length );
 
 			// 5. Select next city randomly from RCL or pick the best
-			int nextCity = Random.Shared.NextDouble() > settings.Factor	? activeCandidates[ Random.Shared.Next( takeCount ) ].City : activeCandidates[ 0 ].City;
+			int selectedIndex = Random.Shared.NextDouble() > settings.Factor ? Random.Shared.Next( takeCount ) : 0;
+			int nextCity = activeCandidates[ selectedIndex ].City;
+			int indexInAvailable = activeCandidates[ selectedIndex ].Index;
 
 			path.Add( nextCity );
-			available.Remove( nextCity );
+			available.RemoveAt( indexInAvailable );
 			currentCity = nextCity;
 		}
 

@@ -1,6 +1,8 @@
 ﻿using RMV.Optimization.TSP.Common;
 using RMV.Optimization.TSP.Domain;
 
+using static System.Runtime.InteropServices.JavaScript.JSType;
+
 namespace RMV.Optimization.TSP.Algorithms;
 
 /// <summary>
@@ -40,21 +42,22 @@ public class EvolutionaryProgramming( TspMap map ) : TspAlgorithmBase( map )
 	/// <returns>The best solution found in this epoch</returns>
 	protected override TspResult RunEpoch( TspResult best )
 	{
-		population = Evolve( population, settings.Take );
+		this.population = Evolve( this.population, this.settings );
 
-		Reinsert( population ); // reinsert random tours to keep population size constant
+		Reinsert( this.population ); // reinsert random tours to keep population size constant
 
-		var result = population.MinBy( i => i.Tour ); // best solution in the current iteration
+		var result = this.population.MinBy( i => i.Tour ) 
+			?? throw new InvalidOperationException( "Population became empty during evolution" );
 
 		return ParallelLocalSearch( result.Path ); // apply local search to improve the best solution
-	}
+	}	
 
 
 	/// <summary>
-	/// Evolves the population by mutating each individual
+	/// Evolves the population by mutating each individual with diverse mutation operators
 	/// </summary>	
-	List<TspResult> Evolve( List<TspResult> population, int take ) =>
-		[ .. population.Select( i => RandomSwap( i ) ).OrderBy( i => i.Tour ).Take( take ) ];
+	List<TspResult> Evolve( List<TspResult> population, EpSettings settings ) =>
+		[ .. population.Select( i => base.Mutate( i, settings.Rate ) ).OrderBy( i => i.Tour ).Take( settings.Take ) ];
 	
 
 	/// <summary>
@@ -64,15 +67,26 @@ public class EvolutionaryProgramming( TspMap map ) : TspAlgorithmBase( map )
 	{
 		int count = population.Count;
 
-		for( int i = count; i < settings.Size - count; i++ )
+		// Fixed: loop should go to settings.Size, not Size - count
+		for( int i = count; i < settings.Size; i++ )
 		{
 			population.Add( base.InitializeTour() );
 		}		
-	}	
+	}
 
 }
 
+/// <summary>
+/// Configuration settings for Evolutionary Programming algorithm
+/// </summary>
 public class EpSettings : BeamSettings
 {
-	public int Take { get; set; } = 10; // number of individuals to take for next generation
+	/// <summary>
+	/// Number of best individuals to select after mutation (survival selection).
+	/// Must be less than Size. Remaining slots are filled with random tours for diversity.
+	/// Typical range: 10-30% of Size (e.g., Take=20 for Size=100)
+	/// </summary>
+	public int Take { get; set; } = 10;
+
+	public double Rate { get; set; } = 0.1; // Mutation rate (probability of mutation)
 }

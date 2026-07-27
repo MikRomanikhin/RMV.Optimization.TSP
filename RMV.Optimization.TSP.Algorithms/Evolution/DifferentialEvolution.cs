@@ -20,7 +20,9 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );
 	}
 
+	/// <summary>
 	/// Initializes the population with random tours and seeds one top-tier solution
+	/// </summary>
 	protected override TspResult? Initialize()
 	{
 		population = base.InitializePopulation( this.settings.Size );
@@ -28,7 +30,8 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 		// Seed one top-tier solution so DE has something to pull towards
 		population[ 0 ] = base.BuildNearestTour();
 
-		return population.MinBy( r => r.Tour )!.Clone();
+		return population.MinBy( r => r.Tour )?.Clone() 
+			?? throw new InvalidOperationException( "Failed to initialize population - population is empty" );
 	}
 
 	/// <summary>
@@ -40,6 +43,9 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 	{
 		List<TspResult> newPopulation = new( this.settings.Size );
 
+		// Track tour lengths to detect duplicates efficiently (O(1) instead of O(n))
+		var tourSet = new HashSet<double>();
+
 		// Process target mutations in parallel to speed up large populations
 		object lockObj = new();
 
@@ -50,18 +56,18 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 			// DE crossover (binomial)
 			var trialPath = CrossoverDE( target.Path, mutant.Path );
 			var trial = TspResult.Build( base.map, trialPath );
-						
+
 			trial = ParallelLocalSearch( trial.Path ); // Local search the trial to smooth combinatorial edges
 
 			lock( lockObj )
 			{
-				Update( newPopulation, trial < target ? trial : target );
+				Update( newPopulation, tourSet, trial < target ? trial : target );
 			}
 		} );
-				
+
 		population = CleanDuplicates( newPopulation ); // Clean up duplicates if the population starts to converge/stagnate
 
-		return population.First(); // best solution in the current iteration
+		return population.MinBy( r => r.Tour )!; // Return the best solution from the current population
 	}
 
 
@@ -88,6 +94,7 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 
 	/// <summary>
 	/// Approximates A + F * (B - C) for permutations by blending donor1 with features common to donor2 and donor3.
+	/// For discrete TSP, Factor acts as a probability of incorporating genes from donors B/C rather than a scaling factor.
 	/// </summary>
 	List<int> DiscreteMutation( IList<int> donor1, IList<int> donor2, IList<int> donor3 )
 	{
@@ -97,7 +104,8 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 
 		for( int i = 0; i < length; i++ )
 		{
-			// F controls whether we take from donor1 (Base) or inject features from (B-C)
+			// Factor controls whether we take from donor1 (Base) or inject features from (B-C)
+			// In discrete space, this is a probability rather than a continuous scaling factor
 			if( Random.Shared.NextDouble() < settings.Factor )
 			{
 				// Attempt to pull a city from B or C that isn't already used
@@ -130,14 +138,18 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 			}
 		}
 
-		// Repair missing cities (filling holes)
+		// Repair missing cities (filling holes with defensive bounds checking)
 		var missing = donor1.Where( c => !added.Contains( c ) ).ToList();
 
 		int missingIdx = 0;
 
 		for( int i = 0; i < length; i++ )
 		{
-			if( mutant[ i ] == -1 )	mutant[ i ] = missing[ missingIdx++ ];			
+			if( mutant[ i ] == -1 )
+			{
+				// Defensive bounds check - should not happen with correct logic, but prevents crashes
+				mutant[ i ] = missingIdx < missing.Count ? missing[ missingIdx++ ] : donor1[ i ];
+			}
 		}
 
 		return [ .. mutant ];
@@ -183,7 +195,7 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 			}
 		}
 
-		// Repair
+		// Repair with defensive bounds checking
 		var missing = target.Where( c => !used.Contains( c ) ).ToList();
 		int missingIdx = 0;
 
@@ -191,7 +203,8 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 		{
 			if( trial[ i ] == -1 )
 			{
-				trial[ i ] = missing[ missingIdx++ ];
+				// Defensive bounds check to prevent index out of range
+				trial[ i ] = missingIdx < missing.Count ? missing[ missingIdx++ ] : target[ i ];
 			}
 		}
 
@@ -200,10 +213,14 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 
 	/// <summary>
 	/// Update population and prevent exact duplicates from dominating the pool
+	/// Uses HashSet for O(1) duplicate detection instead of O(n) linear search
 	/// </summary>	
-	void Update( List<TspResult> nextGen, TspResult current )
+	void Update( List<TspResult> nextGen, HashSet<double> tourSet, TspResult current )
 	{
-		if( !nextGen.Exists( p => Math.Abs( p.Tour - current.Tour ) < MARGIN ) )
+		// Round to 4 decimal places to handle floating-point precision
+		double roundedTour = Math.Round( current.Tour, 4 );
+
+		if( tourSet.Add( roundedTour ) )
 			nextGen.Add( current );
 		else
 			nextGen.Add( base.InitializeTour() ); // inject diversity 
@@ -231,6 +248,15 @@ public class DifferentialEvolution( TspMap map ) : TspAlgorithmBase( map )
 /// </summary>
 public class DeSettings : BeamSettings
 {
-	public double Factor { get; set; } = 0.8; // Mutation factor
-	public double Rate { get; set; } = 0.9; // Crossover rate
+	/// <summary>
+	/// Mutation factor (F) - in discrete TSP, acts as probability of taking genes from donor vectors.
+	/// Typical range: 0.4 to 1.0
+	/// </summary>
+	public double Factor { get; set; } = 0.8;
+
+	/// <summary>
+	/// Crossover rate (CR) - probability of inheriting a gene from the mutant vector during crossover.
+	/// Typical range: 0.7 to 1.0
+	/// </summary>
+	public double Rate { get; set; } = 0.9;
 }

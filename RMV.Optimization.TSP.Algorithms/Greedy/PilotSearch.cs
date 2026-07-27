@@ -40,6 +40,8 @@ public class PilotSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 		if( this.nextStart >= base.Cities ) this.nextStart = 0;
 
 		var result = RunPilotSearch( this.nextStart++ );
+				
+		result = ParallelLocalSearch( result.Path ); // Apply local search to improve the constructed tour
 
 		return result.Tour + MARGIN < best.Tour ? result : best;
 	}
@@ -50,6 +52,9 @@ public class PilotSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 	/// </summary>	
 	TspResult RunPilotSearch( int start )
 	{
+		// Guard against very small maps: TSP requires at least 2 cities
+		if( base.Cities < 2 ) return TspResult.Build( this.map, [ start ] );
+
 		var visited = new bool[ base.Cities ];
 		List<int> path = [ start ];
 
@@ -61,6 +66,10 @@ public class PilotSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 			int currentCity = path.Last();
 
 			int nextCity = SelectNextCity( start, currentCity, visited );
+
+			// Safety check: SelectNextCity should always return a valid city (0 <= nextCity < Cities)
+			if( nextCity < 0 || nextCity >= base.Cities )
+				break; // Abort this tour to avoid invalid state; RunEpoch will compare with best
 
 			tour += map[ currentCity, nextCity ].Weight;
 
@@ -75,48 +84,108 @@ public class PilotSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 
 	/// <summary>
 	/// Selects the next city to visit based on the simulated tour cost.
+	/// Works in-place on the visited array, restoring state to avoid expensive cloning.
+	/// Pure greedy: always picks the best lookahead candidate.
 	/// </summary>
 	/// <param name="start">The starting city of the tour.</param>
 	/// <param name="current">The current city in the tour.</param>
-	/// <param name="visited">An array indicating which cities have been visited.</param>
+	/// <param name="visited">An array indicating which cities have been visited. State is restored after this call.</param>
 	/// <returns>The index of the next city to visit.</returns>
-	int SelectNextCity( int start, int current, bool[] visited ) =>
-		Enumerable.Range( 0, base.Cities ).Where( c => !visited[ c ] ).MinBy( c => SimulateTour( start, current, c, visited ) );
-
-
-	/// <summary>
-	/// Simulates a tour starting from the current city and considering a candidate city.
-	/// </summary>
-	/// <param name="start">The starting city of the tour.</param>
-	/// <param name="current">The current city in the tour.</param>
-	/// <param name="candidate">The candidate city to visit next.</param>
-	/// <param name="visited">An array indicating which cities have been visited.</param>
-	/// <returns></returns>
-	double SimulateTour( int start, int current, int candidate, bool[] visited )
+	int SelectNextCity( int start, int current, bool[] visited )
 	{
-		var copyVisited = ( bool[] )visited.Clone();
-		copyVisited[ candidate ] = true;
+		int bestCity = -1;
+		double bestCost = double.MaxValue;
 
-		double cost = this.map[ current, candidate ].Weight;
-		int lastCity = candidate;
-
-		for( int i = 0; i < base.Cities - 1; i++ )
+		for( int candidate = 0; candidate < base.Cities; candidate++ )
 		{
-			var tmp = Enumerable.Range( 0, base.Cities ).Where( j => !copyVisited[ j ] )
-				.Select( j => new { cost = map[ lastCity, j ].Weight, nextCity = j } ).MinBy( x => x.cost );
+			if( visited[ candidate ] ) continue;
 
-			int nextCity = tmp?.nextCity ?? -1;
-			double minCost = tmp?.cost ?? int.MaxValue;
+			// Mark candidate visited, simulate, then restore
+			visited[ candidate ] = true;
+			double cost = this.map[ current, candidate ].Weight + SimulateTourFrom( start, candidate, visited );
+			visited[ candidate ] = false; // Restore state
 
-			if( nextCity != -1 )
+			if( cost < bestCost )
 			{
-				cost += minCost;
-				copyVisited[ nextCity ] = true;
-				lastCity = nextCity;
+				bestCost = cost;
+				bestCity = candidate;
 			}
 		}
 
-		cost += map[ lastCity, start ].Weight; // Add cost to return to the starting city
+		// If no candidates found, use greedy fallback (nearest unvisited)
+		if( bestCity == -1 )
+		{
+			double nearest = double.MaxValue;
+			for( int candidate = 0; candidate < base.Cities; candidate++ )
+			{
+				if( !visited[ candidate ] )
+				{
+					double edgeCost = this.map[ current, candidate ].Weight;
+					if( edgeCost < nearest )
+					{
+						nearest = edgeCost;
+						bestCity = candidate;
+					}
+				}
+			}
+		}
+
+		return bestCity;
+	}
+
+
+	/// <summary>
+	/// Simulates a tour from the given starting city, greedily completing the remaining path.
+	/// Works in-place on the visited array, restoring all mutations before returning.
+	/// This avoids expensive array cloning while maintaining algorithm correctness.
+	/// </summary>
+	/// <param name="start">The starting city of the tour (to close the loop).</param>
+	/// <param name="lastCity">The current city in the simulation.</param>
+	/// <param name="visited">Array tracking visited cities. All mutations are restored upon return.</param>
+	/// <returns>The cost to complete the tour from lastCity onwards</returns>
+	double SimulateTourFrom( int start, int lastCity, bool[] visited )
+	{
+		double cost = 0;
+		int currentCity = lastCity;
+		var visitedCities = new List<int>(); // Track cities visited during simulation for restoration
+
+		// Greedily visit the nearest unvisited city until all cities are visited
+		for( int i = 0; i < base.Cities - 1; i++ )
+		{
+			int nextCity = -1;
+			double minCost = double.MaxValue;
+
+			// Find nearest unvisited city from current position
+			for( int j = 0; j < base.Cities; j++ )
+			{
+				if( !visited[ j ] )
+				{
+					double edgeCost = this.map[ currentCity, j ].Weight;
+					if( edgeCost < minCost )
+					{
+						minCost = edgeCost;
+						nextCity = j;
+					}
+				}
+			}
+
+			if( nextCity == -1 )
+				break; // No more unvisited cities
+
+			cost += minCost;
+			visited[ nextCity ] = true;
+			visitedCities.Add( nextCity );
+			currentCity = nextCity;
+		}
+
+		// Restore all visited state before returning
+		foreach( int city in visitedCities )
+		{
+			visited[ city ] = false;
+		}
+
+		// Add cost to return to the starting city
+		cost += this.map[ currentCity, start ].Weight;
 
 		return cost;
 	}

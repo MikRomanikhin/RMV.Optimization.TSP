@@ -14,21 +14,34 @@ public class ShortestEdge( TspMap map ) : TspAlgorithmBase( map )
 		base.settings = ConfigManager.GetSection<IlsSettings>( "short" ) ?? throw new ArgumentNullException( nameof( settings ) );
 	}
 
-	protected override TspResult RunEpoch( TspResult best ) => CheapestInsert();
+	protected override TspResult RunEpoch( TspResult best )
+	{
+		var result = CheapestInsert();
+
+		// Apply local search to improve the constructed tour
+		result = ParallelLocalSearch( result.Path );
+
+		return result.Tour + MARGIN < best.Tour ? result : best;
+	}
 
 
 	/// <summary>
-	/// Cheapest insert algorithm
+	/// Cheapest insert algorithm: builds tour by starting with shortest edge and iteratively inserting cities at minimum cost positions
 	/// </summary>
 	TspResult CheapestInsert()
 	{
+		// Guard against very small maps
+		if( base.Cities < 2 ) return TspResult.Build( this.map, [ 0 ] );
+
 		var start = base.map.Edges.MinBy( e => e.Value.Weight ).Value;
 
 		List<int> path = [ start.Head, start.Tail ];
 
-		HashSet<int> candidates = [ .. Enumerable.Range( 0, this.Cities ).Except( path ) ];
+		// Use direct HashSet constructor instead of LINQ spread operator for better performance
+		var candidates = new HashSet<int>( Enumerable.Range( 0, this.Cities ).Except( path ) );
 
 		int count = 0;
+		double tourCost = map[ path[ 0 ], path[ 1 ] ].Weight + map[ path[ 1 ], path[ 0 ] ].Weight; // Initial 2-city tour
 
 		while( candidates.Count > 0 )
 		{
@@ -61,21 +74,11 @@ public class ShortestEdge( TspMap map ) : TspAlgorithmBase( map )
 			path.Insert( bestPosition, bestNode );
 			candidates.Remove( bestNode );
 
-			if( candidates.Count == 0 ) // Only compute tour length for drawing once the path is complete
-			{
-				base.Draw( map.GetTourLength( path ), ++count, path );
-				continue;
-			}
+			// Update tour cost incrementally instead of recalculating from scratch
+			tourCost += minCost;
 
-			// Compute partial tour cost manually for the in-progress path
-			double partialTour = 0;
-			for( int i = 0; i < path.Count; i++ )
-			{
-				int next = ( i + 1 ) % path.Count;
-				partialTour += map[ path[ i ], path[ next ] ].Weight;
-			}
-
-			base.Draw( partialTour, ++count, path );
+			// Draw progress (partial or complete tour)
+			base.Draw( tourCost, ++count, path );
 		}
 
 		return TspResult.Build( this.map, path );

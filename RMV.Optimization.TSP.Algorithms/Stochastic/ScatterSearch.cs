@@ -52,7 +52,8 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 
 		result = ReplaceWorstSolution( population, result.Path );
 
-		if( population.Any() && population.Count % settings.Mutate == 0 ) population = SwapDuplicates( population );
+		//if( population.Any() && population.Count % settings.Mutate == 0 ) population = SwapDuplicates( population );
+		if( count % settings.Mutate == 0 ) population = SwapDuplicates( population );
 
 		return result;
 	}
@@ -120,10 +121,16 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 	/// </summary>
 	static List<int> CombineSolutions( List<TspResult> population )
 	{
+		if( population.Count < 2 )
+			throw new InvalidOperationException( "Population must have at least 2 solutions for crossover" );
+
 		int index1 = Random.Shared.Next( population.Count );
 		int index2 = Random.Shared.Next( population.Count );
-
-		if( index1 == index2 ) index2 = ( index2 + 1 ) % population.Count; // Ensure two different parents
+				
+		while( index1 == index2 ) // Ensure two different parents
+		{
+			index2 = Random.Shared.Next( population.Count );
+		}
 
 		var parent1 = population[ index1 ].Path;
 		var parent2 = population[ index2 ].Path;
@@ -144,6 +151,9 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 			if( child.Count == length ) break;
 		}
 
+		if( child.Count < length )
+			child.AddRange( Enumerable.Range( 0, length ).Except( visited ) );
+
 		return child;
 	}
 	
@@ -155,12 +165,13 @@ public class ScatterSearch( TspMap map ) : TspAlgorithmBase( map )
 	{
 		ArgumentNullException.ThrowIfNull( population );
 		ArgumentNullException.ThrowIfNull( newSolution );
+		if( population.Count == 0 ) throw new InvalidOperationException( "Population cannot be empty" );
 
 		var worstSolution = population.MaxBy( r => r.Tour );
 
 		double newTour = base.map.GetTourLength( newSolution );
 
-		if( newTour < worstSolution.Tour ) // If the new solution is better than the worst solution, replace it
+		if( newTour + MARGIN < worstSolution.Tour ) // If the new solution is better than the worst solution, replace it
 		{
 			population.Remove( worstSolution );
 

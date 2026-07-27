@@ -116,7 +116,8 @@ public class AcoMap
 
 		Restart();
 
-		return this.Algorithm switch {
+		return this.Algorithm switch 
+		{
 			TspAlgorithm.AntSystem => RunAS(),
 
 			TspAlgorithm.AntColonySystem => RunACS(),
@@ -178,6 +179,15 @@ public class AcoMap
 		return result;
 	}
 
+	const double MARGIN = 0.0001;
+
+	/// <summary>
+	/// Pheromone concentration threshold for smoothing.
+	/// When max/avg ratio exceeds this, concentration is considered too extreme
+	/// and pheromone values are adjusted toward the average to maintain diversity.
+	/// </summary>
+	const double MAX_PHEROMONE_RATIO = 10.0;
+
 	/// <summary>
 	/// Max-Min Ant System Tour
 	/// </summary>
@@ -185,29 +195,23 @@ public class AcoMap
 	{
 		MoveAS();
 
-		var result = Evaluate();
+		// Store Best tour value before Evaluate() to detect improvements
+		double bestTourBefore = this.Best?.Tour ?? double.MaxValue;
 
-		// MMAS checks stagnation to optionally reset pheromone trails
-		if( this.noChanges > Settings.Stagnation )
-		{
-			Reset();
-			this.noChanges = 0;
-		}
-		else
-		{
-			this.noChanges++;
-		}
+		var result = Evaluate(); // Evaluate iteration-best and update global best if necessary
 
-		// Evaluate() already updates this.Best if Current < Best.
-		// If Current == Best (meaning an improvement happened this round), reset stagnation.
-		if( this.Colony.Current == this.Best )
-		{
+		// Check if this iteration improved the global best		
+		this.noChanges = this.Best.Tour < bestTourBefore - MARGIN ? 0 : this.noChanges + 1;	
+		
+		if( this.noChanges > Settings.Stagnation ) // Check if stagnation threshold exceeded
+		{			
+			Reset();  // Too many iterations without improvement - reset pheromone trails
 			this.noChanges = 0;
 		}
 
-		UpdateMMA();
+		UpdateMMA(); // Update pheromone trails based on iteration-best or global-best ant
 
-		return result; // returning iteration best so Base class tracks its own noChanges independently
+		return result;
 	}
 
 	#endregion
@@ -225,8 +229,8 @@ public class AcoMap
 	/// <summary>
 	/// Move ACS
 	/// </summary>
-	void MoveACS() => //Parallel.ForEach( this.Colony, this.Edges.BuildPathAcs );
-		this.Colony.ForEach( this.Edges.BuildPathAcs );
+	void MoveACS() => Parallel.ForEach( this.Colony, this.Edges.BuildPathAcs );
+		//this.Colony.ForEach( this.Edges.BuildPathAcs );
 
 	#endregion
 
@@ -259,22 +263,35 @@ public class AcoMap
 	void Deposit() => this.Colony.Deposit( this.Settings.Elite );
 
 	/// <summary>
-	/// Pheromone smoothing — reduces gap between max and min pheromone to counteract stagnation in AS
+	/// Pheromone smoothing — reduces gap between max and min pheromone to counteract stagnation in AS.
+	/// Calculated in a single pass for efficiency.
 	/// </summary>
 	void Smooth()
 	{
-		double max = this.Edges.Values.Max( e => e.Pheromone );
+		var edges = this.Edges.Values;
+		if( edges.Count == 0 ) return;
+
+		// Calculate max and sum in a single pass (more efficient than separate Max() and Average() calls)
+		double max = 0;
+		double sum = 0;
+
+		foreach( var edge in edges )
+		{
+			double pheromone = edge.Pheromone;
+			if( pheromone > max ) max = pheromone;
+			sum += pheromone;
+		}
 
 		if( max <= 0 ) return;
 
-		double avg = this.Edges.Values.Average( e => e.Pheromone );
+		double avg = sum / edges.Count;
 		double ratio = max / avg;
 
-		if( ratio > 10.0 ) // pheromone concentration too extreme
+		if( ratio > MAX_PHEROMONE_RATIO ) // Pheromone concentration too extreme
 		{
-			double factor = 0.9;
+			const double factor = 0.9;
 
-			foreach( var edge in this.Edges.Values )
+			foreach( var edge in edges )
 			{
 				edge.Pheromone = factor * edge.Pheromone + ( 1.0 - factor ) * avg;
 			}

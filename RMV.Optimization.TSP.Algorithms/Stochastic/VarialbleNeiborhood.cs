@@ -10,11 +10,16 @@ public class VarialbleNeiborhoodSearch( TspMap map ) : TspAlgorithmBase( map )
 {	
 	protected override void Configure()
 	{
-		base.settings = ConfigManager.GetSection<TspConfigurationBase>( "vns" );
+		base.settings = ConfigManager.GetSection<TspConfigurationBase>( "vns" ) ?? throw new ArgumentNullException( nameof( settings ) );
 	}
 
-	protected override TspResult? Initialize() => base.BuildNearestTour();
+	protected override TspResult? Initialize() => base.InitializeTour();//BuildNearestTour();
 
+	/// <summary>
+	/// Runs a single epoch of the Variable Neighborhood Search algorithm
+	/// </summary>
+	/// <param name="best">The best solution found so far</param>
+	/// <returns>The best solution found in this epoch</returns>
 	protected override TspResult RunEpoch( TspResult best )
 	{
 		var dup = best.Clone(); // start with the best found solution from the previous epoch
@@ -23,7 +28,7 @@ public class VarialbleNeiborhoodSearch( TspMap map ) : TspAlgorithmBase( map )
 
 		while( ++neighborhood < 3 )
 		{
-			var shakenTour = Shake( best.Path, neighborhood );
+			var shakenTour = Shake( dup.Path, neighborhood );//Shake( best.Path, neighborhood );
 
 			var current = ParallelLocalSearch( shakenTour ); //ParallelLinKernighanSearch( shakenTour );				
 
@@ -41,10 +46,15 @@ public class VarialbleNeiborhoodSearch( TspMap map ) : TspAlgorithmBase( map )
 	/// <summary>
 	/// Shakes the given path by applying a neighborhood operation
 	/// </summary>	
-	static List<int> Shake( IList<int> path, int neighborhood )
+	/// <param name="path">The current path to be shaken</param>
+	/// <param name="neighborhood">The neighborhood index indicating the type of shake to apply</param>
+	/// <returns>A new path resulting from the shake operation</returns>
+	static List<int> Shake( List<int> path, int neighborhood )
 	{
 		var newTour = new List<int>( path );
 		int cities = path.Count;
+		
+		if( cities < 2 ) return newTour; // Guard against small tours: operations require minimum city count
 
 		switch( neighborhood )
 		{
@@ -64,171 +74,5 @@ public class VarialbleNeiborhoodSearch( TspMap map ) : TspAlgorithmBase( map )
 
 		return newTour;
 	}
-
-	#region obsolete
-	/// <summary>
-	/// VNS async wrapper
-	/// </summary>	
-	//public async Task<TspResult> RunAsync(CancellationToken token )
-	//{
-	//	int count = 0;
-	//	int noChanges = 0;
-
-	//	base.timer.Start();
-
-	//	var best = base.BuildNearestTour();
-
-	//	await Task.Run( () => 
-	//	{
-	//		while( noChanges++ < settings.Limit )
-	//		{
-	//			int neighborhood = 0;
-
-	//			while( ++neighborhood < 3 )
-	//			{
-	//				var shakenTour = Shake( best.Path, neighborhood );
-
-	//				var current = Local2OptSearch( shakenTour );	//LinKernighanSearch( shakenTour );				
-
-	//				if( current < best )
-	//				{
-	//					best = current.Clone();
-
-	//					neighborhood = 0; // restart from first neighborhood
-	//					noChanges = 0;
-
-	//					base.Draw( best.Tour, count, best.Path );
-	//				}
-
-	//				//if( ++count % settings.Redraw == 0 ) base.Draw( best.Tour, count );
-	//			}
-
-	//			if( ++count % settings.Redraw == 0 ) base.Draw( best.Tour, count );
-	//		}
-
-	//		base.Draw( best.Tour, count, best.Path );
-	//	} );
-
-	//	base.timer.Stop();
-
-	//	return best;
-	//}
-	//public async Task<TspResult> RunAsync()
-	//{
-	//	int count = 0;
-	//	int noChanges = 0;
-
-	//	base.timer.Start();
-
-	//	var best = base.GetRandomTour();
-
-	//	await Task.Run( () => 
-	//	{
-	//		while( noChanges++ < settings.Limit )
-	//		{
-	//			var shakenTour = Shake( best );
-
-	//			var localPath = LocalSearch( shakenTour.Path );
-
-	//			double localTour = this.map.GetTour( localPath );
-
-	//			if( localTour < best.Tour )
-	//			{
-	//				best = new TspResult { Tour = localTour, Path = localPath };					
-	//				noChanges = 0;
-	//			}				
-
-	//			if( ++count % settings.Redraw == 0 ) base.Draw( best.Tour, count, best.Path );
-	//		}
-
-	//		base.Draw( best.Tour, count, best.Path );
-	//	} );
-
-	//	base.timer.Stop();
-
-	//	return best;
-	//}
-
-	//TspResult Shake( TspResult result )
-	//{
-	//	var copy = result.Clone() as TspResult;
-
-	//	(Action accept, double delta) = base.Swap( copy.Path );
-
-	//	if( delta < 0 )
-	//	{
-	//		copy.Tour += delta;
-	//		accept!();
-	//	}
-
-	//	return copy;
-	//}
-	//public async Task<TspResult> RunAsync()
-	//{
-	//	int count = 0;
-	//	int noChanges = 0;
-
-	//	base.timer.Start();
-
-	//	var best = base.GetRandomTour();
-
-	//	await Task.Run( () => 
-	//	{
-	//		while( noChanges++ < settings.Limit )
-	//		{				
-	//			var current = LocalSearch( best );
-
-	//			if( current < best ) best = new TspResult { Tour = current.Tour, Path = current.Path };			
-
-	//			if( ++count % settings.Redraw == 0 ) base.Draw( best.Tour, count, best.Path );				
-	//		}
-
-	//		base.Draw( best.Tour, count, best.Path );
-	//	} );
-
-	//	base.timer.Stop();
-
-	//	return best;
-	//}
-	//TspResult LocalSearch( TspResult best )
-	//{
-	//	double currentCost = best.Tour;
-	//	int[] currentTour = new int[ base.Cities ];
-
-	//	int count = 0;
-
-	//	while( count < base.Cities / 2 )
-	//	{
-	//		var newTour = Shake( [ .. best.Path ], ++count );
-
-	//		double newCost = base.map.GetTour( newTour );
-
-	//		if( newCost + MARGIN < currentCost )
-	//		{
-	//			Array.Copy( newTour, currentTour, base.Cities );
-	//			currentCost = newCost;
-	//			count = 1; // Restart neighborhood search
-	//		}
-	//	}
-
-	//	return new TspResult { Tour = currentCost, Path = currentTour };
-	//}
-
-	//static int[] Shake( int[] tour, int k )
-	//{
-	//	int[] newTour = ( int[] )tour.Clone();
-
-	//	for( int i = 0; i < k; i++ )
-	//	{
-	//		int pos1 = Random.Shared.Next( tour.Length );
-	//		int pos2 = Random.Shared.Next( tour.Length );
-
-	//		while( pos2 == pos1 ) pos2 = Random.Shared.Next( tour.Length );
-
-	//		(newTour[ pos1 ], newTour[ pos2 ]) = (newTour[ pos2 ], newTour[ pos1 ]);				
-	//	}
-
-	//	return newTour;
-	//}
-	#endregion
+	
 }

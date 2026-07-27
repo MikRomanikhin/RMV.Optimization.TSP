@@ -6,23 +6,27 @@ namespace RMV.Optimization.TSP.Algorithms;
 /// <summary>
 /// Beam Search algorithm for TSP
 /// </summary>
-public class BeamSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
+public class BeamSearch( TspMap map ) : TspAlgorithmBase( map )
 {
 	BeamSettings settings;
 	int nextStart = 0;
 
+	/// <summary>
+	/// Configures the algorithm by loading the beam search settings from the configuration manager
+	/// </summary>	
 	protected override void Configure()
 	{
 		this.settings = ConfigManager.GetSection<BeamSettings>( "beam" );
 		base.settings = this.settings as TspConfigurationBase ?? throw new ArgumentNullException( nameof( settings ) );
-		//base.settings = ConfigManager.GetSection<IlsSettings>( "beam" ) ?? throw new ArgumentNullException( nameof( settings ) );
+
+		this.settings.Size  = Math.Min( this.settings.Size, base.Cities ); //no point expanding beyond the number of cities
 	}
 
 	/// <summary>
 	/// Initializes the algorithm and generates an initial solution for TSP problem using a beam search starting from city 0.
 	/// </summary>
 	/// <returns>A <see cref="TspResult"/> representing the initial solution, or <see langword="null"/> if no solution is found.</returns>
-	protected override TspResult? Initialize()
+	protected override TspResult Initialize()
 	{		
 		this.nextStart = 1;
 
@@ -53,17 +57,26 @@ public class BeamSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 	/// </summary>
 	TspResult RunBeamSearch( int start )
 	{
+		// Guard against very small maps: TSP requires at least 2 cities
+		if( base.Cities < 2 ) return TspResult.Build( this.map, [ start ] );
+
 		var beam = new List<BeamState>( settings.Size ) { new( start ) };
 
 		for( int step = 0; step < base.Cities - 1; step++ )
 		{
 			beam = ExpandBeam( beam );
+
+			// Guard against empty beam during expansion
+			if( beam.Count == 0 ) return TspResult.Build( this.map, [ start ] );
 		}
+
+		// Guard against empty beam before MinBy
+		if( beam.Count == 0 ) return TspResult.Build( this.map, [ start ] );
 
 		// Complete tours and find best, then refine with local search
 		var best = beam.Select( s => CompleteTour( s, start ) ).MinBy( r => r.Tour );
 
-		return ParallelLocalSearch( [ .. best.Path ] );
+		return ParallelLocalSearch( best.Path );
 	}
 
 	/// <summary>
@@ -88,10 +101,7 @@ public class BeamSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 			// Only expand the nearest candidates per state — no need to generate all
 			var nearest = GetNearestAvailable( state );
 
-			foreach( var (city, weight) in nearest )
-			{
-				nextBeam.Add( state.Extend( city, weight ) );
-			}
+			nearest.ForEach( item => nextBeam.Add( state.Extend( item.city, item.weight ) ) );
 		}
 
 		// Add one random expansion per state for diversity
@@ -147,20 +157,13 @@ public class BeamSearch( TspMap map ) : TspAlgorithmBase( map )//, ITspAsync
 
 			double w = map[ lastCity, city ].Weight;
 
-			// Insert in sorted position, keep only top 'take'
-			int pos = nearest.Count;
+			// Find sorted insertion position			
+			int pos = nearest.FindIndex( item => w < item.weight );
+			if( pos == -1 ) pos = nearest.Count;
 
-			for( int i = 0; i < nearest.Count; i++ )
-			{
-				if( w < nearest[ i ].weight ) { pos = i; break; }
-			}
+			nearest.Insert( pos, (city, w) ); // Always insert at the correct sorted position, then trim if needed
 
-			if( pos < take )
-			{
-				nearest.Insert( pos, (city, w) );
-
-				if( nearest.Count > take ) nearest.RemoveAt( take );
-			}
+			if( nearest.Count > take ) nearest.RemoveAt( take ); // Keep only top 'take' nearest candidates
 		}
 
 		return nearest;
@@ -196,11 +199,13 @@ sealed class BeamState
 	/// </summary>
 	public BeamState Extend( int city, double edgeWeight )
 	{
+		// Pre-allocate with exact size needed to avoid resizing
 		var newPath = new List<int>( this.Path.Count + 1 );
 		newPath.AddRange( this.Path );
 		newPath.Add( city );
 
-		var newVisited = new HashSet<int>( this.Visited ) { city };
+		// Copy visited set and add new city
+		var newVisited = new HashSet<int>( this.Visited ) { city	};
 
 		return new BeamState( newPath, newVisited, this.Cost + edgeWeight );
 	}

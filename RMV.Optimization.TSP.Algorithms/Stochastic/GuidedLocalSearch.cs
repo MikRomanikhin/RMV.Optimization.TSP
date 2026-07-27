@@ -42,7 +42,6 @@ public class GuidedLocalSearch( TspMap map ) : TspAlgorithmBase( map )
 	{
 		double oldCost = UpdateTotalCost( best.Path );
 
-		int count = 0;
 		int noChanges = 0;
 
 		// Pre-allocate a single array/list to swap into, avoiding continuous Gen0 allocations
@@ -76,11 +75,11 @@ public class GuidedLocalSearch( TspMap map ) : TspAlgorithmBase( map )
 
 					oldCost = cost;
 					noChanges = 0;
-					base.Draw( best.Tour, count, best.Path );
+					base.Draw( best.Tour, base.count, best.Path );
 				}
 			}
 
-			if( ++noChanges > 200 ) break;
+			if( ++noChanges > (( GlsSettings )base.settings).Stagnation ) break;
 		}
 
 		return best;
@@ -150,5 +149,7 @@ public class GuidedLocalSearch( TspMap map ) : TspAlgorithmBase( map )
 /// </summary>
 class GlsSettings : TspConfigurationBase
 {
-	public double Optima { get; set; }	
+	public double Optima { get; set; }
+	
+	public int Stagnation { get; set; } = 200;
 }

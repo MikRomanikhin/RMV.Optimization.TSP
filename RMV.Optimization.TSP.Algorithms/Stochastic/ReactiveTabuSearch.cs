@@ -12,10 +12,9 @@ public class ReactiveTabuSearch( TspMap map ) : TspAlgorithmBase( map )
 {
 	TabuSettings settings;
 	TspResult current;
-
-	//List<TspResult> population = [];
-	List<TabuEntry> tabuList = [];
-	List<VisitedEntry> visitedList = [];
+		
+	readonly List<TabuEntry> tabuList = [];
+	readonly List<VisitedEntry> visitedList = [];
 
 	int tabuTenure;
 	int prohibPeriod = 1;
@@ -46,7 +45,7 @@ public class ReactiveTabuSearch( TspMap map ) : TspAlgorithmBase( map )
 	/// <returns>A new TspResult instance representing the best solution found during this epoch.</returns>
 	protected override TspResult RunEpoch( TspResult best )
 	{
-		var candidateEntry = GetCandidateEntry( visitedList, current.Path );
+		var candidateEntry = GetCandidateEntry( visitedList, this.current.Path );
 
 		if( candidateEntry != null ) //update existing entry
 		{
@@ -90,12 +89,13 @@ public class ReactiveTabuSearch( TspMap map ) : TspAlgorithmBase( map )
 		{
 			var first = tabu.First();
 
-			if( first < best && first < current ) (current, bestMoveEdges) = first.Split();
+			//if( first < best && first < current ) (current, bestMoveEdges) = first.Split();
+			if( first < best ) (current, bestMoveEdges) = first.Split();
 		}
 
-		bestMoveEdges.ForEach( edge => UpdateTabu( tabuList, edge, count ) );
+		bestMoveEdges.ForEach( edge => UpdateTabu( tabuList, edge, count, settings.TabuListSize, tabuTenure ) );
 
-		return candidates.First();
+		return current; // candidates.First();
 	}
 
 
@@ -121,20 +121,31 @@ public class ReactiveTabuSearch( TspMap map ) : TspAlgorithmBase( map )
 	/// <summary>
 	/// Checks if the given edge is tabu based on the tabu list and delta value
 	/// </summary>	
-	static bool IsTabu( TspEdge edge, List<TabuEntry> tabuList, int delta ) =>	tabuList.Any( e => e.Edge == edge && e.ProhibPeriod >= delta );
+	static bool IsTabu( TspEdge edge, List<TabuEntry> tabuList, int delta ) =>	
+		tabuList.Any( e => e.Edge == edge && e.ProhibPeriod >= delta );
 
 
 	/// <summary>
 	/// Creates or updates tabu entry for the given edge
 	/// </summary>	
-	static void UpdateTabu( List<TabuEntry> tabuList, TspEdge edge, int iteration )
+	static void UpdateTabu( List<TabuEntry> tabuList, TspEdge edge, int iteration, int maxSize, int tabuTenure )
 	{
 		var entry = tabuList.FirstOrDefault( e => e.Edge.Equals( edge ) );
 
-		if( entry == null )					
-			tabuList.Add( new TabuEntry( edge, iteration ) );							
+		if( entry == null )
+		{
+			if( tabuList.Count >= maxSize )
+			{
+				var oldest = tabuList.MinBy( e => e.Iteration );
+				tabuList.Remove( oldest );
+			}
+			tabuList.Add( new TabuEntry( edge, iteration ) { ProhibPeriod = iteration + tabuTenure } );
+		}
 		else 
+		{
 			entry.Iteration = iteration;
+			entry.ProhibPeriod = iteration + tabuTenure;
+		}
 	}
 	
 
@@ -200,18 +211,25 @@ public class ReactiveTabuSearch( TspMap map ) : TspAlgorithmBase( map )
 	/// <summary>
 	/// Converts a path to a list of edges
 	/// </summary>	
-	List<TspEdge> ToEdgeList( IList<int> path ) => Enumerable.Range( 0, this.Cities )
-		.Select( i => i < this.Cities - 1 ? base.map[ path[ i ], path[ i + 1 ] ] : base.map[ path[ i ], path[ 0 ] ] ).ToList();
+	List<TspEdge> ToEdgeList( IList<int> path ) => [ .. Enumerable.Range( 0, this.Cities )
+		.Select( i => i < this.Cities - 1 ? base.map[ path[ i ], path[ i + 1 ] ] : base.map[ path[ i ], path[ 0 ] ] ) ];
 
 	/// <summary>
 	/// Checks if two edge lists are equivalent
 	/// </summary>	
-	static bool Equivalent( List<TspEdge> first, List<TspEdge> second ) => first.All( e => second.Contains( e ) );
+	static bool Equivalent( List<TspEdge> first, List<TspEdge> second )
+	{
+		if( first.Count != second.Count ) return false;
+
+		var secondSet = new HashSet<TspEdge>( second );
+
+		return first.All( e => secondSet.Contains( e ) );
+	}
 
 	/// <summary>
-	/// Aggregates TspResult and Edges 
-	///</summary>
-	class TabooResult( double tour, List<int> path, List<TspEdge> edges ) : TspResult( tour, path )
+/// Aggregates TspResult and Edges 
+///</summary>
+class TabooResult( double tour, List<int> path, List<TspEdge> edges ) : TspResult( tour, path )
 	{		
 		public List<TspEdge> Edges { get; set; } = edges;
 
@@ -225,7 +243,7 @@ public class ReactiveTabuSearch( TspMap map ) : TspAlgorithmBase( map )
 	{
 		public TspEdge Edge { get; set; } = edge;
 		public int Iteration { get; set; } = iter;
-		//public int Visits { get; set; } = 1; // Number of visits to this edge
+		
 		public int ProhibPeriod { get; set; } = 1; // Prohibition period
 
 		public override string ToString() => $"Edge:{this.Edge} @ {this.Iteration}";

@@ -55,92 +55,68 @@ public static class Serialization
       return serializer.Deserialize( stream ) as T;
    }
 
-   #endregion
+	#endregion
 
-    
-   #region Json ------------------------------------------------------------
 
-   /// <summary>
-   /// Json serializing
-   /// </summary>
-   /// <typeparam name="T">target object type</typeparam>
-   /// <param name="target">target object</param>
-   /// <returns>Json string</returns>
-   public static string? ToJson<T>( this T target, JsonSerializerOptions? options = null )
-   {
-      return target == null ? null : JsonSerializer.Serialize( target, options ?? DefaultJsonSerializerOptions );
-   }
+	#region Json ------------------------------------------------------------
 
-   /// <summary>
-   /// Json serializing async
-   /// </summary>
-   /// <typeparam name="T">target object type</typeparam>
-   /// <param name="target">target object</param>
-   /// <returns>Json string</returns>
-   public static async Task<string?> ToJsonAsync<T>( this T target, JsonSerializerOptions? options = null )
-   {
-      if( target == null ) return null;
+	/// <summary>
+	/// Json serializing
+	/// </summary>
+	/// <typeparam name="T">target object type</typeparam>
+	/// <param name="target">target object</param>
+	/// <returns>Json string</returns>
+	public static string? ToJson<T>( this T target, JsonSerializerOptions? options = null ) =>
+		target == null ? null : JsonSerializer.Serialize( target, options ?? DefaultJsonSerializerOptions );
 
-      using var stream = new MemoryStream();
-      await JsonSerializer.SerializeAsync<T>( stream, target, options );
 
-      stream.Position = 0;
-      using var reader = new StreamReader( stream );
-      return await reader.ReadToEndAsync();
-   }
+	/// <summary>
+	/// Reconstruct object from Json string
+	/// </summary>
+	/// <typeparam name="T">target object type</typeparam>
+	/// <param name="source">json string</param>
+	/// <returns>deserialized object</returns>
+	public static T? FromJson<T>( this string source, JsonSerializerOptions? options = null ) =>
+		JsonSerializer.Deserialize<T>( source, options ?? DefaultJsonSerializerOptions );
 
-   /// <summary>
-   /// Reconstruct object from Json string
-   /// </summary>
-   /// <typeparam name="T">target object type</typeparam>
-   /// <param name="source">json string</param>
-   /// <returns>deserialized object</returns>
-   public static T? FromJson<T>( this string source, JsonSerializerOptions? options = null )
-   {
-      return JsonSerializer.Deserialize<T>( source, options );
-   }
 
-   /// <summary>
-   /// Reconstruct object from Json string async
-   /// </summary>
-   /// <typeparam name="T">target object type</typeparam>
-   /// <param name="source">json string</param>
-   /// <returns>deserialized object</returns>
-   public static async Task<T?> FromJsonAsync<T>( this string source, JsonSerializerOptions options = null )
-   {
-      Stream stream = new MemoryStream( Encoding.UTF8.GetBytes( source ) );
+	/// <summary>
+	/// Creates a deep copy of the source object by serializing and deserializing
+	/// </summary>
+	/// <typeparam name="T">The type of the object to copy</typeparam>
+	/// <param name="source">The source object to copy</param>
+	/// <param name="options">Optional JSON serializer options</param>
+	/// <returns>A deep copy of the source object</returns>
+	public static T DeepCopyJson<T>( this T source, JsonSerializerOptions? options = null ) =>
+		JsonSerializer.Deserialize<T>( JsonSerializer.Serialize( source, options ?? DefaultJsonSerializerOptions ), options ?? DefaultJsonSerializerOptions )!;
 
-      return await JsonSerializer.DeserializeAsync<T>( stream, options );
-   }
-  
-  
-   static JsonSerializerOptions DefaultJsonSerializerOptions
-   {
-      get
-      {
-         var options = new JsonSerializerOptions
-         {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,//IgnoreNullValues = true,
-            WriteIndented = true,
-            IgnoreReadOnlyProperties = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-         };
 
-         options.Converters.Add( new JsonStringEnumConverter( JsonNamingPolicy.CamelCase ) );
+	/// <summary>
+	/// Default JsonSerializerOptions for serialization and deserialization
+	/// </summary>
+	static readonly JsonSerializerOptions DefaultJsonSerializerOptions = InitializeDefaultJsonSerializerOptions();
 
-         return options;
-      }
-   }
+	static JsonSerializerOptions InitializeDefaultJsonSerializerOptions()
+	{
+		var options = new JsonSerializerOptions {
+			DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+			WriteIndented = false,
+			IgnoreReadOnlyProperties = true,
+			ReferenceHandler = ReferenceHandler.IgnoreCycles,
+			PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+		};
+
+		options.Converters.Add( new JsonStringEnumConverter( JsonNamingPolicy.CamelCase ) );
+
+		return options;
+	}
 
 	#endregion
 
 	/// <summary>
-	/// Coverts string collection to string with separators
-	/// </summary> 
-	/// <summary>
 	/// Converts a collection to a string with the specified separator.
 	/// Returns null if the collection is null or empty.
-	/// </summary>      
+	/// </summary>
 	public static string? Join<T>( this IEnumerable<T>? target, string separator = ", " ) =>
 		target is not null && target.Any() ? string.Join( separator, target ) : null;
 }

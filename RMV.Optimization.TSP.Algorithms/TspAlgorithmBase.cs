@@ -53,7 +53,7 @@ public abstract class TspAlgorithmBase
 	public async Task<TspResult> RunAsync( CancellationToken? token = null )
 	{
 		this.timer.Start();
-				
+
 		int noChanges = 0;
 
 		TspResult best = Initialize();
@@ -64,23 +64,27 @@ public abstract class TspAlgorithmBase
 		{
 			while( noChanges++ < settings.Limit )
 			{
-				pauseEvent.Wait( token ?? CancellationToken.None ); //pause support
+				pauseEvent.Wait( token ?? CancellationToken.None ); // pause support
 
 				if( token?.IsCancellationRequested == true ) return; // ensure the method returns a Task-compatible type
 
 				TspResult current = RunEpoch( best );
+								
+				if( current == null ) continue;  // Skip if current or best is null			
 
-				if( best != null )
+				if( best != null && current < best )
 				{
-					if( current < best )
-					{
-						best = current.Clone();
-						noChanges = 0;
-						Draw( best.Tour, count, best.Path );
-					}
-
-					if( ++count % settings.Redraw == 0 ) Draw( best.Tour, count );
+					best = current.Clone();
+					noChanges = 0;
+					Draw( best.Tour, count, best.Path );
 				}
+				else if( best == null ) // Initialize best if it wasn't set by Initialize()
+				{					
+					best = current.Clone();
+					Draw( best.Tour, count, best.Path );
+				}
+
+				if( ++count % settings.Redraw == 0 ) Draw( best.Tour, count );
 			}
 
 			if( best != null ) Draw( best.Tour, ++count, best.Path );
@@ -122,7 +126,7 @@ public abstract class TspAlgorithmBase
 	#endregion
 
 
-		#region Local Search Selection ---------------------------------------------
+	#region Local Search Selection ---------------------------------------------
 
 		/// <summary>
 		/// Selects a local search algorithm to apply in parallel
@@ -130,55 +134,17 @@ public abstract class TspAlgorithmBase
 		/// <param name="path">The path to optimize</param>
 		/// <returns>The optimized TSP result</returns>	
 	protected TspResult ParallelLocalSearch( List<int> path )
-	{		
+	{
+		if( path == null || path.Count < 3 ) return TspResult.Build( this.map, path );
+
 		return Random.Shared.Next( 7 ) switch 
 		{
 			0 or 1 or 2 or 3 => Parallel2OptSearch( path ),
 			4 => Parallel2p5OptSearch( path ),
 			5 => Parallel3OptSearch( path ),
-			6 => ParallelLinKernighanSearch( path ),
-			_ => throw new InvalidOperationException( "Invalid random choice" ),
+			_ => ParallelLinKernighanSearch( path )
 		};
 	}
-
-	#endregion
-
-
-	#region RandomSwap ---------------------------------------------------------
-
-	/// <summary>
-	/// Randomly swaps two cities in the path to create a new path
-	/// </summary>
-	/// <param name="path">The path to modify</param>
-	protected static List<int> RandomSwap( IList<int> path )
-	{
-		var copy = new List<int>( path );
-
-		var indexes = IRandomSequence.GetUniqueInts( 2, 0, path.Count - 1 );
-
-		int i = indexes[ 0 ];
-		int j = indexes[ 1 ];
-
-		(copy[ i ], copy[ j ]) = (copy[ j ], copy[ i ]);
-
-		return copy;
-	}
-
-	/// <summary>
-	/// Randomly swaps two cities in the TSP result to create a new result
-	/// </summary>
-	/// <param name="result">The TSP result to modify</param>
-	/// <returns>A new TSP result with two cities swapped</returns>
-	protected TspResult RandomSwap( TspResult result )
-	{
-		var copy = new List<int>( result.Path );
-
-		(int i, int j) = IRandomSequence.GetPairInts( 0, result.Path.Count - 1 );
-
-		(copy[ i ], copy[ j ]) = (copy[ j ], copy[ i ]);
-
-		return TspResult.Build( this.map, copy );
-	}	
 
 	#endregion
 
@@ -932,14 +898,13 @@ public abstract class TspAlgorithmBase
 	/// Swaps two cities in the path and returns the action and the delta of the tour length after the swap
 	/// </summary>
 	/// <remarks>Based on https://github.com/Inspiaaa/TSP-Simulated-Annealing/blob/master/Scripts/SimulatedAnnealing.cs</remarks>	
-	public (Action, double) Swap( IList<int> path )
+	protected (Action, double) Swap( IList<int> path )
 	{
 		return Random.Shared.Next( 6 ) switch 
 		{							
 			0 => GetDeltaAfterSwap( path ), //swap random cities													  
 			1 or 2 => GetDeltaAfterTransport( path ), // This operation only works for more than 3 cities																	
-			3 or 4 or 5 => GetDeltaAfterReverse( path ), // Twice as likely as it is more powerful.
-			_ => throw new ArgumentException( "OOPS!" ),
+			_ => GetDeltaAfterReverse( path ), // Twice as likely as it is more powerful			
 		};
 	}
 	
@@ -1098,6 +1063,54 @@ public abstract class TspAlgorithmBase
 
 	#endregion
 
+	protected List<int> Swapit( List<int> path )
+	{
+		return Random.Shared.Next( 4 ) switch {
+			0 => RandomSwap( path ),
+			1 => Random2OptSwap( path ),
+			2 => ThreeOptSwap( path, 0, 1, 2 ), // Example indices, adjust as needed
+			_ => OrOptSwap( path )
+		};
+
+	}
+
+	#region RandomSwap ---------------------------------------------------------
+
+	/// <summary>
+	/// Randomly swaps two cities in the path to create a new path
+	/// </summary>
+	/// <param name="path">The path to modify</param>
+	protected static List<int> RandomSwap( IList<int> path )
+	{
+		var copy = new List<int>( path );
+
+		var indexes = IRandomSequence.GetUniqueInts( 2, 0, path.Count - 1 );
+
+		int i = indexes[ 0 ];
+		int j = indexes[ 1 ];
+
+		(copy[ i ], copy[ j ]) = (copy[ j ], copy[ i ]);
+
+		return copy;
+	}
+
+	/// <summary>
+	/// Randomly swaps two cities in the TSP result to create a new result
+	/// </summary>
+	/// <param name="result">The TSP result to modify</param>
+	/// <returns>A new TSP result with two cities swapped</returns>
+	protected TspResult RandomSwap( TspResult result )
+	{
+		var copy = new List<int>( result.Path );
+
+		(int i, int j) = IRandomSequence.GetPairInts( 0, result.Path.Count - 1 );
+
+		(copy[ i ], copy[ j ]) = (copy[ j ], copy[ i ]);
+
+		return TspResult.Build( this.map, copy );
+	}
+
+	#endregion
 
 	#region TwoOptSwap ---------------------------------------------------------	
 
@@ -1105,7 +1118,7 @@ public abstract class TspAlgorithmBase
 	/// <summary>
 	/// Randomly selects two indices in the path and reverses the segment between them
 	/// </summary>	
-	protected static List<int> Random2OptSwap( IList<int> path )
+	protected static List<int> Random2OptSwap( List<int> path )
 	{
 		int n = path.Count;	//if( n < 4 ) return new List<int>( path ); // Not enough cities to swap
 
@@ -1125,7 +1138,7 @@ public abstract class TspAlgorithmBase
 	/// </summary>	
 	protected static List<int> ThreeOptSwap( List<int> path, int i, int j, int k )
 	{
-		List<int> copy = new( path );
+		List<int> copy = [ .. path ];
 
 		copy.Reverse( i + 1, j - i ); // Reverse the segment between i+1 and j
 
@@ -1134,8 +1147,6 @@ public abstract class TspAlgorithmBase
 		return copy;
 	}
 
-
-
 	#endregion
 
 
@@ -1143,11 +1154,61 @@ public abstract class TspAlgorithmBase
 
 	/// <summary>
 	/// Or-Opt local search for TSP: moves segments of length 1, 2, or 3 to a new position if it improves the tour.
+	/// Optimized to avoid O(n²) Except() calls by using direct index manipulation.
 	/// </summary>
-	/// <param name="best">Initial TspResult (will not be modified)</param>
+	/// <param name="path">Initial path to optimize (will be modified in-place)</param>
 	/// <param name="maxSegmentLength">Maximum segment length to move (1, 2, or 3)</param>
 	/// <returns>Improved TspResult</returns>
-	protected TspResult OrOptSwap( List<int> path, int maxSegmentLength = 3 )
+	//protected static TspResult OrOptSwap( List<int> path, int maxSegmentLength = 3 )
+	//{
+	//	int cities = path.Count;
+	//	double tour = this.map.GetTourLength( path );
+
+	//	bool improved = true;
+
+	//	while( improved )
+	//	{
+	//		improved = false;
+
+	//		for( int segmentLength = 1; segmentLength <= maxSegmentLength; segmentLength++ )
+	//		{
+	//			if( segmentLength >= cities ) continue; // Don't move the whole tour or more
+
+	//			for( int i = 0; i < cities && !improved; i++ )
+	//			{
+	//				// Extract segment indices (handles wrap-around)
+	//				var segmentIndices = new List<int>( segmentLength );
+	//				for( int k = 0; k < segmentLength; k++ )
+	//				{
+	//					segmentIndices.Add( ( i + k ) % cities );
+	//				}
+
+	//				// Try all possible insertion positions
+	//				for( int insertPos = 0; insertPos < cities; insertPos++ )
+	//				{
+	//					// Skip if trying to insert back at original position
+	//					if( insertPos >= i && insertPos < ( i + segmentLength ) % cities ) continue;
+
+	//					// Build new path: remove segment and insert at new position
+	//					var newPath = BuildReorderedPath( path, segmentIndices, insertPos );
+
+	//					double newTour = this.map.GetTourLength( newPath );
+
+	//					if( newTour + MARGIN < tour ) // Found an improvement
+	//					{
+	//						tour = newTour;
+	//						path = newPath;
+	//						improved = true;
+	//						break; // Restart with new path
+	//					}
+	//				}
+	//			}
+	//		}
+	//	}
+
+	//	return new TspResult( tour, path );
+	//}
+	protected List<int> OrOptSwap( List<int> path, int maxSegmentLength = 3 )
 	{
 		double tour = this.map.GetTourLength( path );
 
@@ -1161,46 +1222,73 @@ public abstract class TspAlgorithmBase
 			{
 				if( segmentLength >= this.Cities ) continue; // Don't move the whole tour or more
 
-				for( int i = 0; i < this.Cities; i++ )
+				for( int i = 0; i < this.Cities && !improved; i++ )
 				{
-					// Build the segment to move (wraps around)
-					var segment = Enumerable.Range( 0, segmentLength ).Select( k => path[ ( i + k ) % this.Cities ] ).ToList();
+					// Extract segment indices (handles wrap-around)
+					var segmentIndices = new List<int>( segmentLength );
+					for( int k = 0; k < segmentLength; k++ )
+					{
+						segmentIndices.Add( ( i + k ) % this.Cities );
+					}
 
-					var rest = path.Except( segment ).ToList();  // Build the rest of the tour without the segment			   
+					// Try all possible insertion positions
+					for( int insertPos = 0; insertPos < this.Cities; insertPos++ )
+					{
+						// Skip if trying to insert back at original position
+						if( insertPos >= i && insertPos < ( i + segmentLength ) % this.Cities ) continue;
 
-					improved = TryInsert( ref path, ref tour, i, segment, rest ); // Try all possible insertion positions
+						// Build new path: remove segment and insert at new position
+						var newPath = BuildReorderedPath( path, segmentIndices, insertPos );
 
-					if( improved ) goto NextIteration; // Restart search after improvement					
+						double newTour = this.map.GetTourLength( newPath );
+
+						if( newTour + MARGIN < tour ) // Found an improvement
+						{
+							tour = newTour;
+							path = newPath;
+							improved = true;
+							break; // Restart with new path
+						}
+					}
 				}
 			}
-		NextIteration:;
 		}
 
-		return new TspResult( tour, path );
+		return path;//new TspResult( tour, path );
 	}
 
-	bool TryInsert( ref List<int> path, ref double tour, int i, List<int> segment, List<int> rest )
+	/// <summary>
+	/// Builds a new path by removing segment at specified indices and reinserting at new position.
+	/// Avoids inefficient LINQ Except() operation.
+	/// </summary>
+	static List<int> BuildReorderedPath( List<int> path, List<int> segmentIndices, int insertPos )
 	{
-		for( int insertPos = 0; insertPos <= rest.Count; insertPos++ )
+		var newPath = new List<int>( path.Count );
+		var segmentSet = new HashSet<int>( segmentIndices );
+		var segment = new List<int>( segmentIndices.Count );
+
+		int posCounter = 0;
+				
+		for( int i = 0; i < path.Count; i++ ) // Extract segment values and remaining cities
 		{
-			if( insertPos == i ) continue; // Don't insert back at the original position
-
-			var newPath = new List<int>( rest );
-
-			newPath.InsertRange( insertPos, segment );
-
-			double newTour = this.map.GetTourLength( newPath );
-
-			if( newTour + MARGIN < tour )
+			if( segmentSet.Contains( i ) )
 			{
-				tour = newTour;
-				path = newPath;
-
-				return true; //goto NextIteration; 
+				segment.Add( path[ i ] );
+			}
+			else
+			{
+				if( posCounter == insertPos )	newPath.AddRange( segment );				
+				newPath.Add( path[ i ] );
+				posCounter++;
 			}
 		}
+				
+		if( insertPos >= posCounter ) // Insert segment at end if insertPos >= remaining cities
+		{
+			newPath.AddRange( segment );
+		}
 
-		return false;
+		return newPath;
 	}
 
 	#endregion	
@@ -1377,5 +1465,86 @@ public abstract class TspAlgorithmBase
 	}
 
 	#endregion
-		
+
+
+	#region Mutation -----------------------------------------------------------
+
+	/// <summary>
+	/// Mutates an individual using one of several mutation operators
+	/// </summary>
+	protected TspResult Mutate( TspResult individual, double rate )
+	{
+		if( Random.Shared.NextDouble() < rate ) return individual; // No mutation with probability (1 - rate)
+																								 
+		return Random.Shared.Next( 4 ) switch  // Select random mutation operator for diversity
+		{
+			0 => RandomSwap( individual ),        // Swap two cities
+			1 => InversionMutation( individual ), // Reverse a segment
+			2 => InsertionMutation( individual ), // Move a city
+			_ => ScrambleMutation( individual )   // Shuffle a segment
+		};
+	}
+
+	/// <summary>
+	/// Inversion mutation: reverse a random segment of the tour
+	/// </summary>
+	TspResult InversionMutation( TspResult individual )
+	{
+		var path = new List<int>( individual.Path );
+		if( path.Count < 3 ) return individual;
+
+		var (start, end) = IRandomSequence.GetPairInts( 0, path.Count - 1 );
+		path.Reverse( start, end - start + 1 );
+
+		return TspResult.Build( this.map, path );
+	}
+
+	/// <summary>
+	/// Insertion mutation: remove a city and insert it elsewhere
+	/// </summary>
+	TspResult InsertionMutation( TspResult individual )
+	{
+		var path = new List<int>( individual.Path );
+		if( path.Count < 3 ) return individual;
+
+		int removeIndex = Random.Shared.Next( path.Count );
+		int city = path[ removeIndex ];
+		path.RemoveAt( removeIndex );
+
+		int insertIndex = Random.Shared.Next( path.Count );
+		path.Insert( insertIndex, city );
+
+		return TspResult.Build( this.map, path );
+	}
+
+	/// <summary>
+	/// Scramble mutation: shuffle a random segment of the tour
+	/// </summary>
+	TspResult ScrambleMutation( TspResult individual )
+	{
+		var path = new List<int>( individual.Path );
+		if( path.Count < 3 ) return individual;
+
+		var (start, end) = IRandomSequence.GetPairInts( 0, path.Count - 1 );
+		int length = end - start + 1;
+
+		// Shuffle the segment
+		var segment = path.GetRange( start, length );
+		for( int i = 0; i < length; i++ )
+		{
+			int j = Random.Shared.Next( i, length );
+			(segment[ i ], segment[ j ]) = (segment[ j ], segment[ i ]);
+		}
+				
+		for( int i = 0; i < length; i++ ) // Replace the segment
+		{
+			path[ start + i ] = segment[ i ];
+		}
+
+		return TspResult.Build( this.map, path );
+	}
+
+
+	#endregion
+
 }

@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System.Collections.Concurrent;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Configuration;
 
 using RMV.Optimization.TSP.Common;
@@ -13,6 +14,7 @@ public class GeneticAlgorithm( TspMap map ) : TspAlgorithmBase( map )
 {
 	GeneticSettings settings;
 	List<TspResult> population = [];
+	List<(TspResult individual, int rank)> rankedCache = [];
 	
 	/// <summary>
 	/// Configures the algorithm settings	
@@ -57,20 +59,24 @@ public class GeneticAlgorithm( TspMap map ) : TspAlgorithmBase( map )
 			this.population.Sort( ( a, b ) => a.Tour.CompareTo( b.Tour ) );
 		}
 
+		// Cache ranked population once to avoid re-sorting on every selection
+		this.rankedCache = [ .. this.population.OrderBy( ind => ind.Fitness ).Select( ( ind, index ) => (ind, index + 1) ) ];
+
 		var newPopulation = this.population.Take( this.settings.MinSize ).ToList();
 		int childrenToGenerate = this.settings.MaxSize - this.settings.MinSize;
 
 		// 1. Thread-safe collection for parallel breeding
-		var children = new System.Collections.Concurrent.ConcurrentBag<TspResult>();
+		var children = new ConcurrentBag<TspResult>();
 
 		// 2. Parallelize crossover and mutation
-		Parallel.For( 0, childrenToGenerate, _ => {
-			// Note: Ensure RankBasedSelection in base is thread-safe (doesn't mutate shared state)
-			var parent1 = RankBasedSelection( this.population );
-			var parent2 = RankBasedSelection( this.population );
+		Parallel.For( 0, childrenToGenerate, _ => 
+		{
+			// Use cached ranks for fast selection (no re-sorting)
+			var parent1 = LocalRankBasedSelection();
+			var parent2 = LocalRankBasedSelection();
 
 			var child = base.Crossover( parent1, parent2 );
-			child = Mutation( child, this.settings.MutationRate );
+			child = base.Mutate( child, this.settings.MutationRate );
 
 			// 3. MEMETIC BOOST: Apply local search to the mutated child
 			// If ParallelLocalSearch causes thread starvation inside a Parallel.For, 
@@ -87,21 +93,24 @@ public class GeneticAlgorithm( TspMap map ) : TspAlgorithmBase( map )
 	}
 
 
-	#region Mutation -----------------------------------------------------------
-
 	/// <summary>
-	/// Applies a random mutation to the specified TSP result with a given probability.
+	/// Performs rank-based selection using pre-computed cached ranks (called within parallel loops).
+	/// Avoids redundant sorting by using the rankedCache computed once per epoch.
 	/// </summary>
-	/// <remarks>
-	/// This method is typically used in genetic algorithms to introduce variation into candidate solutions. 
-	/// The mutation is performed by randomly swapping elements in the result when the mutation is triggered.
-	/// </remarks>
-	/// <param name="result">The TSP result to potentially mutate. This object represents the current solution to be modified.</param>
-	/// <param name="rate">The probability, between 0.0 and 1.0 inclusive, that a mutation will be applied.</param>
-	/// <returns>A mutated TSP result if a mutation is applied; otherwise, the original result.</returns>
-	TspResult Mutation( TspResult result, double rate ) => Random.Shared.NextDouble() < rate ? base.RandomSwap( result ) : result;
+	TspResult LocalRankBasedSelection()
+	{
+		double totalRank = this.rankedCache.Sum( r => r.rank );
+		double randomValue = Random.Shared.NextDouble() * totalRank;
+		double cumulativeRank = 0.0;
 
-	#endregion
+		foreach( var (individual, rank) in this.rankedCache )
+		{
+			cumulativeRank += rank;
+			if( cumulativeRank > randomValue ) return individual;
+		}
+
+		return this.rankedCache.First().individual; // Fallback
+	}
 
 	/// <summary>
 	/// Alter duplicates in the population
