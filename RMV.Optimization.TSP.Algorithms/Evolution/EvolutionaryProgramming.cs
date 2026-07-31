@@ -1,4 +1,4 @@
-﻿using RMV.Optimization.TSP.Common;
+﻿using RMV.Common.Configuration;
 using RMV.Optimization.TSP.Domain;
 
 using static System.Runtime.InteropServices.JavaScript.JSType;

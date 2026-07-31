@@ -14,6 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Common\RMV.Common\RMV.Common.Configuration\RMV.Common.Configuration.csproj" />
     <ProjectReference Include="..\RMV.Optimization.TSP.Common\RMV.Optimization.TSP.Common.csproj" />
     <ProjectReference Include="..\RMV.Optimization.TSP.Domain\RMV.Optimization.TSP.Domain.csproj" />
   </ItemGroup>

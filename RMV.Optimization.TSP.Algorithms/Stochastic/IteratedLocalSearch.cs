@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
+using RMV.Common.Configuration;
 using RMV.Optimization.TSP.Common;
 using RMV.Optimization.TSP.Domain;
 

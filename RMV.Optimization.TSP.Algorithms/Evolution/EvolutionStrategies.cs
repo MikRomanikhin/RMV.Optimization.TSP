@@ -1,4 +1,5 @@
-﻿using RMV.Optimization.TSP.Common;
+﻿using RMV.Common.Configuration;
+using RMV.Optimization.TSP.Common;
 using RMV.Optimization.TSP.Domain;
 
 namespace RMV.Optimization.TSP.Algorithms;
